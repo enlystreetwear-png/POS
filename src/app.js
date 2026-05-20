@@ -48,6 +48,7 @@ const state = {
   cart: [],
   search: "",
   modal: null,
+  authError: "",
   lastReceipt: null
 };
 
@@ -110,6 +111,11 @@ async function initFirebase() {
   state.storage = storageMod.getStorage(firebaseApp);
   state.firebase = { authMod, fireMod, storageMod };
   state.cloudReady = true;
+  try {
+    await authMod.getRedirectResult(state.auth);
+  } catch (error) {
+    state.authError = friendlyAuthError(error);
+  }
   authMod.onAuthStateChanged(state.auth, async (user) => {
     state.user = user;
     state.tenantId = user?.uid || "demo";
@@ -208,7 +214,9 @@ function renderAuth() {
           ${icon("badge-check")}
           <div><strong>Annual POS subscription</strong><span>1 year access • ${money(seed.subscription.amount)} / store</span></div>
         </div>
+        ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
         <h2>Sign in to your store</h2>
+        <p class="auth-note">New store owner? Use Create account first, then sign in later with the same email.</p>
         <div class="field"><label>Email</label><input class="input" id="email" type="email" placeholder="owner@example.com"></div>
         <div class="field"><label>Password</label><input class="input" id="password" type="password" placeholder="Minimum 6 characters"></div>
         <button class="button" id="signin">${icon("log-in")} Sign in</button>
@@ -770,7 +778,12 @@ async function saveCustomer() {
 async function authAction(action) {
   const email = document.querySelector("#email").value.trim();
   const password = document.querySelector("#password").value;
-  if (!email || password.length < 6) return alert("Enter an email and a password of at least 6 characters.");
+  state.authError = "";
+  if (!email || password.length < 6) {
+    state.authError = "Enter an email and a password of at least 6 characters.";
+    render();
+    return;
+  }
   if (!state.cloudReady) {
     localAuthAction(action, email, password);
     return;
@@ -783,21 +796,30 @@ async function authAction(action) {
       await renewSubscription();
     }
   } catch (error) {
-    alert(error.message);
+    state.authError = friendlyAuthError(error);
+    render();
   }
 }
 
 async function googleSignIn() {
+  state.authError = "";
   if (!state.cloudReady) {
-    alert("Add Firebase config first, then enable Google sign-in in Firebase Authentication.");
+    state.authError = "Add Firebase config first, then enable Google sign-in in Firebase Authentication.";
+    render();
     return;
   }
-  const { GoogleAuthProvider, signInWithPopup } = state.firebase.authMod;
+  const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = state.firebase.authMod;
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
   try {
-    const provider = new GoogleAuthProvider();
     await signInWithPopup(state.auth, provider);
   } catch (error) {
-    alert(error.message);
+    if (["auth/popup-blocked", "auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(error.code)) {
+      await signInWithRedirect(state.auth, provider);
+      return;
+    }
+    state.authError = friendlyAuthError(error);
+    render();
   }
 }
 
@@ -809,11 +831,31 @@ function localAuthAction(action, email, password) {
     state.data.subscription = annualSubscription();
     writeLocal();
   } else if (!users[email] || users[email].password !== password) {
-    return alert("Account not found. Create an account first, or check the password.");
+    state.authError = "Account not found. Create an account first, or check the password.";
+    render();
+    return;
   }
   state.localSession = { email };
   localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
   render();
+}
+
+function friendlyAuthError(error) {
+  const code = error?.code || "";
+  const messages = {
+    "auth/admin-restricted-operation": "Email/password sign-up is disabled. In Firebase Authentication, enable Email/Password provider.",
+    "auth/configuration-not-found": "Firebase Authentication is not set up yet. Open Firebase Authentication and enable your sign-in providers.",
+    "auth/email-already-in-use": "This email already has an account. Use Sign in instead of Create account.",
+    "auth/invalid-credential": "Wrong email or password. If this is a new account, click Create account first.",
+    "auth/invalid-email": "Enter a valid email address.",
+    "auth/operation-not-allowed": "This login provider is disabled in Firebase Authentication. Enable Email/Password or Google provider.",
+    "auth/popup-blocked": "The browser blocked the Google popup. Allow popups or try again.",
+    "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",
+    "auth/unauthorized-domain": "This domain is not authorized in Firebase. Add localhost and your Vercel domain in Authentication settings.",
+    "auth/user-not-found": "Account not found. Click Create account first.",
+    "auth/wrong-password": "Wrong password. Please try again."
+  };
+  return messages[code] || error?.message || "Login failed. Check Firebase Authentication settings.";
 }
 
 function annualSubscription(fromDate = new Date()) {

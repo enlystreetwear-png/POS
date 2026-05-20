@@ -582,6 +582,26 @@ textarea:focus {
   margin-top: 3px;
 }
 
+.auth-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #f0bbb2;
+  background: #fff2ef;
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.auth-note {
+  color: var(--muted);
+  margin: -6px 0 2px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .subscription-alert {
   display: flex;
   justify-content: space-between;
