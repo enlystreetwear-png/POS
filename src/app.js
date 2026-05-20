@@ -3,11 +3,11 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260521-pondy-assets";
-const logoLightUrl = `/public/pondy-logo-light.png?v=${assetVersion}`;
-const logoDarkUrl = `/public/pondy-logo-dark.png?v=${assetVersion}`;
-const markLightUrl = `/public/pondy-mark-light.png?v=${assetVersion}`;
-const markDarkUrl = `/public/pondy-mark-dark.png?v=${assetVersion}`;
+const assetVersion = "20260521-pondy-assets-2";
+const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
+const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
+const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
+const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
 
 const demoProducts = [
   { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
@@ -160,12 +160,14 @@ async function initFirebase() {
   const [{ initializeApp }, authMod, fireMod, storageMod] = firebase;
   const firebaseApp = initializeApp(config);
   state.auth = authMod.getAuth(firebaseApp);
+  await authMod.setPersistence(state.auth, authMod.browserLocalPersistence);
   state.db = fireMod.getFirestore(firebaseApp);
   state.storage = storageMod.getStorage(firebaseApp);
   state.firebase = { authMod, fireMod, storageMod };
   state.cloudReady = true;
   try {
-    await authMod.getRedirectResult(state.auth);
+    const redirectResult = await authMod.getRedirectResult(state.auth);
+    if (redirectResult?.user) await finishSignedInUser(redirectResult.user);
   } catch (error) {
     state.authError = friendlyAuthError(error);
   }
