@@ -7,7 +7,7 @@
   "theme_color": "#12312d",
   "icons": [
     {
-      "src": "/public/pos-icon.svg",
+      "src": "/public/pondypos-logo.svg",
       "sizes": "192x192",
       "type": "image/svg+xml"
     }

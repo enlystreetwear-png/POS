@@ -2,6 +2,8 @@
 
 A responsive SaaS-style POS app for mobile and desktop. It includes billing, printable receipts, product inventory, customers, sales history, dashboard metrics, demo storage, and Firebase-ready cloud persistence.
 
+PondyPOS is branded for restaurant operations, with a production-style logo, table-first billing, menu management, guest records, subscriptions, and responsive PC/mobile workflows.
+
 ## Features
 
 - Mobile and PC responsive POS checkout

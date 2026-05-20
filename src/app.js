@@ -285,13 +285,23 @@ function renderAuth() {
     <main class="auth">
       <section class="auth-hero">
         <div class="brand" style="margin-bottom:42px">
-          <div class="brand-mark">${icon("scan-barcode")}</div>
+          <div class="brand-mark"><img src="/public/pondypos-logo.svg" alt="PondyPOS"></div>
           <div><h1 style="font-size:20px">PondyPOS</h1><span>Restaurant SaaS POS</span></div>
         </div>
-        <h1>Restaurant POS</h1>
-        <p>Run table billing, menu items, guests, kitchen-friendly orders, and annual subscriptions from phone or desktop.</p>
+        <span class="eyebrow">Cloud restaurant operations</span>
+        <h1>PondyPOS</h1>
+        <p>Table-first billing, menu control, guest records, order history, and annual SaaS licensing in one responsive restaurant workspace.</p>
+        <div class="auth-proof">
+          <div><strong>Table-first</strong><span>Open bills by table</span></div>
+          <div><strong>Cloud-ready</strong><span>Firebase sync</span></div>
+          <div><strong>Mobile + PC</strong><span>One interface</span></div>
+        </div>
       </section>
       <section class="auth-card">
+        <div class="auth-card-logo">
+          <img src="/public/pondypos-logo.svg" alt="PondyPOS">
+          <div><strong>PondyPOS</strong><span>Restaurant SaaS console</span></div>
+        </div>
         <div class="auth-plan">
           ${icon("badge-check")}
           <div><strong>Annual POS subscription</strong><span>1 year access • ${money(seed.subscription.amount)} / store</span></div>
@@ -337,7 +347,7 @@ function renderBrand() {
   return `
     <div class="brand">
       <button class="brand-toggle" id="brand-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
-        <span class="brand-mark">${icon("scan-barcode")}</span>
+        <span class="brand-mark"><img src="/public/pondypos-logo.svg" alt="PondyPOS"></span>
         <span class="brand-text"><h1>PondyPOS</h1><span>Restaurant POS</span></span>
       </button>
     </div>
