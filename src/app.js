@@ -3,8 +3,11 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260521-green";
-const logoUrl = `/public/pondypos-logo.svg?v=${assetVersion}`;
+const assetVersion = "20260521-pondy-assets";
+const logoLightUrl = `/public/pondy-logo-light.png?v=${assetVersion}`;
+const logoDarkUrl = `/public/pondy-logo-dark.png?v=${assetVersion}`;
+const markLightUrl = `/public/pondy-mark-light.png?v=${assetVersion}`;
+const markDarkUrl = `/public/pondy-mark-dark.png?v=${assetVersion}`;
 
 const demoProducts = [
   { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
@@ -283,13 +286,12 @@ function renderAuth() {
   const authDisabled = state.authBusy || waitingForFirebase;
   const loginText = state.authBusy ? "Signing in..." : "Sign in";
   const createText = state.authBusy ? "Creating account..." : "Create account";
-  const googleText = waitingForFirebase ? "Connecting to Firebase..." : state.authBusy ? "Opening Google..." : "Continue with Google";
+  const googleText = waitingForFirebase ? "Connecting to Firebase..." : state.authBusy ? "Redirecting to Google..." : "Continue with Google";
   return `
     <main class="auth">
       <section class="auth-hero">
         <div class="brand" style="margin-bottom:42px">
-          <div class="brand-mark"><img src="${logoUrl}" alt="PondyPOS"></div>
-          <div><h1 style="font-size:20px">PondyPOS</h1><span>Restaurant SaaS POS</span></div>
+          <img class="auth-hero-logo" src="${logoDarkUrl}" alt="PondyPOS">
         </div>
         <span class="eyebrow">Cloud restaurant operations</span>
         <h1>PondyPOS</h1>
@@ -302,8 +304,7 @@ function renderAuth() {
       </section>
       <section class="auth-card">
         <div class="auth-card-logo">
-          <img src="${logoUrl}" alt="PondyPOS">
-          <div><strong>PondyPOS</strong><span>Restaurant SaaS console</span></div>
+          <img src="${logoLightUrl}" alt="PondyPOS">
         </div>
         <div class="auth-plan">
           ${icon("badge-check")}
@@ -350,7 +351,7 @@ function renderBrand() {
   return `
     <div class="brand">
       <button class="brand-toggle" id="brand-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
-        <span class="brand-mark"><img src="${logoUrl}" alt="PondyPOS"></span>
+        <span class="brand-mark"><img src="${markDarkUrl}" alt="PondyPOS"></span>
         <span class="brand-text"><h1>PondyPOS</h1><span>Restaurant POS</span></span>
       </button>
     </div>
@@ -999,17 +1000,12 @@ async function googleSignIn() {
   }
   state.authBusy = true;
   render();
-  const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = state.firebase.authMod;
+  const { GoogleAuthProvider, signInWithRedirect } = state.firebase.authMod;
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   try {
-    const credential = await signInWithPopup(state.auth, provider);
-    await finishSignedInUser(credential.user);
+    await signInWithRedirect(state.auth, provider);
   } catch (error) {
-    if (["auth/popup-blocked", "auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(error.code)) {
-      await signInWithRedirect(state.auth, provider);
-      return;
-    }
     state.authBusy = false;
     state.authError = friendlyAuthError(error);
     render();
@@ -1057,6 +1053,7 @@ function friendlyAuthError(error) {
     "auth/email-already-in-use": "This email already has an account. Use Sign in instead of Create account.",
     "auth/invalid-credential": "Wrong email or password. If this is a new account, click Create account first.",
     "auth/invalid-email": "Enter a valid email address.",
+    "auth/internal-error": "Google login failed inside Firebase. I switched the app to redirect login; if this continues, enable Google provider and add localhost in Firebase authorized domains.",
     "auth/operation-not-allowed": "This login provider is disabled in Firebase Authentication. Enable Email/Password or Google provider.",
     "auth/popup-blocked": "The browser blocked the Google popup. Allow popups or try again.",
     "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",

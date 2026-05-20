@@ -1,21 +1,21 @@
 :root {
   color-scheme: light;
-  --ink: #121f1d;
-  --muted: #63716d;
+  --ink: #111111;
+  --muted: #6b7280;
   --paper: #ffffff;
-  --wash: #f3f7f2;
-  --line: #dfe7e2;
-  --brand: #123d35;
-  --brand-2: #238174;
-  --accent: #238174;
-  --blue: #2f6f9f;
+  --wash: #f6f7f9;
+  --line: #e5e7eb;
+  --brand: #050505;
+  --brand-2: #1f2933;
+  --accent: #1f2933;
+  --blue: #111827;
   --surface: rgba(255, 255, 255, 0.95);
-  --mint: #e7f5ee;
-  --sky: #e9f2ff;
-  --ok: #137a52;
-  --danger: #4f5f69;
-  --shadow: 0 18px 45px rgba(25, 43, 39, 0.11);
-  --shadow-soft: 0 8px 24px rgba(25, 43, 39, 0.08);
+  --mint: #f4f5f7;
+  --sky: #f1f5f9;
+  --ok: #111827;
+  --danger: #4b5563;
+  --shadow: 0 18px 45px rgba(17, 24, 39, 0.11);
+  --shadow-soft: 0 8px 24px rgba(17, 24, 39, 0.08);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -27,9 +27,9 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(243, 247, 242, 0.96)),
-    radial-gradient(circle at 18% 0%, rgba(35, 129, 116, 0.13), transparent 30%),
-    radial-gradient(circle at 96% 12%, rgba(47, 128, 116, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 247, 249, 0.96)),
+    radial-gradient(circle at 18% 0%, rgba(17, 24, 39, 0.13), transparent 30%),
+    radial-gradient(circle at 96% 12%, rgba(31, 41, 51, 0.08), transparent 26%),
     var(--wash);
 }
 
@@ -57,7 +57,7 @@ button {
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #123d35 0%, #143d36 48%, #102722 100%);
+  background: linear-gradient(180deg, #050505 0%, #111111 48%, #000000 100%);
   color: white;
   padding: 18px 14px;
   display: flex;
@@ -66,7 +66,7 @@ button {
   position: sticky;
   top: 0;
   height: 100vh;
-  box-shadow: 18px 0 45px rgba(25, 43, 39, 0.18);
+  box-shadow: 18px 0 45px rgba(17, 24, 39, 0.18);
   overflow: hidden;
 }
 
@@ -103,7 +103,7 @@ button {
   min-width: 42px;
   height: 42px;
   border-radius: 8px;
-  background: #ffffff;
+  background: transparent;
   display: grid;
   place-items: center;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
@@ -163,7 +163,7 @@ button {
 .nav button:hover {
   background: rgba(255, 255, 255, 0.14);
   color: white;
-  box-shadow: inset 3px 0 0 #2f6f9f;
+  box-shadow: inset 3px 0 0 #111827;
 }
 
 .nav button span,
@@ -246,7 +246,7 @@ button {
 
 .status-pill.ok {
   color: var(--ok);
-  background: #e7f5ee;
+  background: #f4f5f7;
 }
 
 .status-pill.danger {
@@ -287,7 +287,7 @@ button {
   padding: 16px;
   position: relative;
   overflow: hidden;
-  border-top: 3px solid rgba(35, 129, 116, 0.42);
+  border-top: 3px solid rgba(17, 24, 39, 0.42);
 }
 
 .metric::after {
@@ -298,7 +298,7 @@ button {
   right: -38px;
   top: -42px;
   border-radius: 999px;
-  background: rgba(47, 128, 116, 0.1);
+  background: rgba(31, 41, 51, 0.1);
 }
 
 .metric span {
@@ -358,7 +358,7 @@ textarea {
 .input:focus,
 select:focus,
 textarea:focus {
-  outline: 3px solid rgba(47, 128, 116, 0.18);
+  outline: 3px solid rgba(31, 41, 51, 0.18);
   border-color: var(--brand-2);
 }
 
@@ -377,18 +377,18 @@ textarea:focus {
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
   color: white;
   font-weight: 700;
-  box-shadow: 0 12px 22px rgba(18, 60, 53, 0.18);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.18);
   transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 
 .button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(18, 60, 53, 0.2);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.2);
 }
 
 .button.secondary {
   color: var(--brand);
-  background: #e7f5ee;
+  background: #f4f5f7;
   box-shadow: none;
 }
 
@@ -414,7 +414,7 @@ textarea:focus {
   height: 38px;
   justify-content: center;
   border-radius: 8px;
-  background: #edf6f2;
+  background: #f4f5f7;
   color: var(--brand);
 }
 
@@ -432,7 +432,7 @@ textarea:focus {
   border-radius: 8px;
   padding: clamp(22px, 4vw, 36px);
   background:
-    linear-gradient(135deg, rgba(18, 60, 53, 0.96), rgba(47, 128, 116, 0.9)),
+    linear-gradient(135deg, rgba(0, 0, 0, 0.96), rgba(31, 41, 51, 0.9)),
     radial-gradient(circle at 78% 18%, rgba(47, 111, 159, 0.28), transparent 30%);
   box-shadow: var(--shadow);
   margin-bottom: 16px;
@@ -487,13 +487,13 @@ textarea:focus {
 
 .table-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(47, 128, 116, 0.45);
-  box-shadow: 0 20px 44px rgba(25, 43, 39, 0.13);
+  border-color: rgba(31, 41, 51, 0.45);
+  box-shadow: 0 20px 44px rgba(17, 24, 39, 0.13);
 }
 
 .table-card.occupied {
-  background: linear-gradient(180deg, #ffffff, #eef7f3);
-  border-color: rgba(47, 128, 116, 0.42);
+  background: linear-gradient(180deg, #ffffff, #f4f5f7);
+  border-color: rgba(31, 41, 51, 0.42);
 }
 
 .table-card-top,
@@ -517,12 +517,12 @@ textarea:focus {
   display: grid;
   place-items: center;
   color: var(--brand);
-  background: #e7f5ee;
+  background: #f4f5f7;
 }
 
 .table-card.occupied .table-card-top span {
   color: var(--accent);
-  background: #e7f5ee;
+  background: #f4f5f7;
 }
 
 .table-card h4 {
@@ -574,14 +574,14 @@ textarea:focus {
 
 .product-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 38px rgba(25, 43, 39, 0.13);
+  box-shadow: 0 18px 38px rgba(17, 24, 39, 0.13);
 }
 
 .product-art {
   aspect-ratio: 4 / 3;
   background:
-    linear-gradient(135deg, rgba(18, 60, 53, 0.1), rgba(47, 128, 116, 0.08)),
-    #eef7f3;
+    linear-gradient(135deg, rgba(0, 0, 0, 0.1), rgba(31, 41, 51, 0.08)),
+    #f4f5f7;
   display: grid;
   place-items: center;
   color: var(--brand);
@@ -664,7 +664,7 @@ textarea:focus {
   height: 30px;
   border-radius: 7px;
   color: var(--brand);
-  background: #edf6f2;
+  background: #f4f5f7;
 }
 
 .summary {
@@ -763,13 +763,13 @@ textarea:focus {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
-  background: #102722;
+  background: #000000;
 }
 
 .auth-hero {
   background:
-    linear-gradient(135deg, rgba(13, 39, 35, 0.96), rgba(24, 91, 82, 0.92)),
-    url("/public/pondypos-logo.svg?v=20260521-green") 78% 26% / min(280px, 34vw) no-repeat;
+    linear-gradient(135deg, rgba(0, 0, 0, 0.96), rgba(31, 41, 51, 0.92)),
+    url("/public/pondy-mark-dark.png?v=20260521-pondy-assets") 78% 26% / min(280px, 34vw) no-repeat;
   color: white;
   padding: clamp(28px, 6vw, 78px);
   display: flex;
@@ -784,7 +784,7 @@ textarea:focus {
   position: absolute;
   inset: auto 0 0;
   height: 160px;
-  background: linear-gradient(180deg, transparent, rgba(13, 39, 35, 0.5));
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.5));
   pointer-events: none;
 }
 
@@ -807,7 +807,7 @@ textarea:focus {
 
 .auth-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 250, 247, 0.98));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
   padding: 30px;
   display: flex;
   flex-direction: column;
@@ -846,9 +846,9 @@ textarea:focus {
   gap: 12px;
   padding: 14px;
   border-radius: 8px;
-  background: #e7f5ee;
+  background: #f4f5f7;
   color: var(--brand);
-  border: 1px solid #cde7dc;
+  border: 1px solid #d1d5db;
 }
 
 .auth-plan span {
@@ -876,8 +876,8 @@ textarea:focus {
 }
 
 .auth-loading {
-  border: 1px solid #cfe4db;
-  background: #e7f5ee;
+  border: 1px solid #d1d5db;
+  background: #f4f5f7;
   color: var(--brand);
 }
 
@@ -948,7 +948,7 @@ textarea:focus {
 }
 
 .subscription-alert span {
-  color: #4f5f69;
+  color: #4b5563;
 }
 
 .subscription-hero {
@@ -961,7 +961,7 @@ textarea:focus {
   border-radius: 8px;
   padding: clamp(22px, 4vw, 38px);
   background:
-    linear-gradient(135deg, rgba(18, 60, 53, 0.98), rgba(47, 128, 116, 0.92)),
+    linear-gradient(135deg, rgba(0, 0, 0, 0.98), rgba(31, 41, 51, 0.92)),
     radial-gradient(circle at 80% 20%, rgba(47, 111, 159, 0.34), transparent 26%);
   box-shadow: var(--shadow);
 }
@@ -979,7 +979,7 @@ textarea:focus {
 }
 
 .eyebrow {
-  color: #9edbd2;
+  color: #d1d5db;
   font-weight: 800;
   font-size: 12px;
   text-transform: uppercase;
@@ -1017,7 +1017,7 @@ textarea:focus {
 
 .badge.ok {
   color: var(--ok);
-  background: #e7f5ee;
+  background: #f4f5f7;
 }
 
 .badge.danger {
@@ -1050,7 +1050,7 @@ textarea:focus {
 }
 
 .plan-card {
-  background: linear-gradient(180deg, #ffffff, #f2faf6);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
 }
 
 .feature-list {
@@ -1097,7 +1097,7 @@ textarea:focus {
     z-index: 20;
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    background: linear-gradient(135deg, #123d35, #143d36);
+    background: linear-gradient(135deg, #050505, #111111);
     padding: 8px;
     gap: 6px;
   }
