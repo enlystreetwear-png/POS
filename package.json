@@ -1,0 +1,13 @@
+{
+  "name": "saas-pos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobile and desktop SaaS POS with billing, inventory, customers, Firebase-ready cloud storage, and Vercel deployment.",
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "build": "echo 'Static app: no build required'",
+    "preview": "python3 -m http.server 4173"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
