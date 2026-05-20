@@ -1,20 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 240 240" role="img" aria-label="PondyPOS">
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 240 240" role="img" aria-label="PondyPOS PP logo">
   <defs>
-    <linearGradient id="pondy-bg" x1="34" y1="26" x2="204" y2="214" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1f7a6f"/>
-      <stop offset="0.5" stop-color="#123c35"/>
-      <stop offset="1" stop-color="#0d2723"/>
+    <linearGradient id="pp-bg" x1="32" y1="24" x2="210" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7a2418"/>
+      <stop offset="0.52" stop-color="#123d35"/>
+      <stop offset="1" stop-color="#0b2420"/>
     </linearGradient>
-    <linearGradient id="pondy-gold" x1="58" y1="56" x2="178" y2="180" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffe19a"/>
-      <stop offset="1" stop-color="#c58a21"/>
+    <linearGradient id="pp-gold" x1="66" y1="44" x2="170" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe2a0"/>
+      <stop offset="1" stop-color="#d89a2d"/>
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="208" height="208" rx="48" fill="url(#pondy-bg)"/>
-  <path d="M65 95c0-27 22-49 49-49h16c27 0 49 22 49 49v3H65v-3Z" fill="#fffdfa"/>
-  <path d="M56 100h132c8 0 14 6 14 14v48c0 8-6 14-14 14H56c-8 0-14-6-14-14v-48c0-8 6-14 14-14Z" fill="#fffdfa"/>
-  <path d="M72 122h40c9 0 16 7 16 16s-7 16-16 16H92v22H72v-54Zm20 17h17c4 0 7-3 7-7s-3-7-7-7H92v14Z" fill="#123c35"/>
-  <path d="M138 122h22c17 0 30 11 30 27s-13 27-30 27h-22v-54Zm20 37h3c8 0 14-4 14-10s-6-10-14-10h-3v20Z" fill="#e35d3e"/>
-  <path d="M69 86c8-18 25-29 45-29h16c20 0 37 11 45 29H69Z" fill="url(#pondy-gold)"/>
-  <path d="M82 188h76" stroke="#ffe19a" stroke-width="10" stroke-linecap="round"/>
+  <rect x="16" y="16" width="208" height="208" rx="52" fill="url(#pp-bg)"/>
+  <circle cx="120" cy="120" r="78" fill="#fff7ec" opacity="0.96"/>
+  <path d="M68 171V67h48c24 0 41 15 41 37s-17 37-41 37H96v30H68Zm28-55h17c9 0 15-5 15-12s-6-12-15-12H96v24Z" fill="#123d35"/>
+  <path d="M121 171V67h48c24 0 41 15 41 37s-17 37-41 37h-20v30h-28Zm28-55h17c9 0 15-5 15-12s-6-12-15-12h-17v24Z" fill="#c9422d"/>
+  <path d="M65 187h110" stroke="url(#pp-gold)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M64 54c14-16 34-25 56-25s42 9 56 25" stroke="url(#pp-gold)" stroke-width="8" stroke-linecap="round" fill="none"/>
 </svg>
