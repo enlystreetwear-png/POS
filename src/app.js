@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260521-pondy-assets-2";
+const assetVersion = "20260521-pondy-assets-3";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -176,6 +176,7 @@ async function initFirebase() {
     state.tenantId = user?.uid || "demo";
     state.authReady = true;
     state.authBusy = false;
+    if (user) rememberSignedInUser(user);
     render();
     if (user) {
       try {
@@ -293,7 +294,7 @@ function renderAuth() {
     <main class="auth">
       <section class="auth-hero">
         <div class="brand" style="margin-bottom:42px">
-          <img class="auth-hero-logo" src="${logoDarkUrl}" alt="PondyPOS">
+          <img class="auth-hero-logo" src="${markDarkUrl}" alt="PondyPOS">
         </div>
         <span class="eyebrow">Cloud restaurant operations</span>
         <h1>PondyPOS</h1>
@@ -305,9 +306,6 @@ function renderAuth() {
         </div>
       </section>
       <section class="auth-card">
-        <div class="auth-card-logo">
-          <img src="${logoLightUrl}" alt="PondyPOS">
-        </div>
         <div class="auth-plan">
           ${icon("badge-check")}
           <div><strong>Annual POS subscription</strong><span>1 year access • ${money(seed.subscription.amount)} / store</span></div>
@@ -1017,6 +1015,7 @@ async function googleSignIn() {
 async function finishSignedInUser(user) {
   state.user = user;
   state.tenantId = user?.uid || "demo";
+  rememberSignedInUser(user);
   state.authReady = true;
   state.authBusy = false;
   render();
@@ -1026,6 +1025,15 @@ async function finishSignedInUser(user) {
   } catch (error) {
     console.warn("Cloud sync failed", error);
   }
+}
+
+function rememberSignedInUser(user) {
+  state.localSession = {
+    email: user?.email || "firebase-user@pondypos.local",
+    firebaseUid: user?.uid || "",
+    firebase: true
+  };
+  localStorage.setItem("pondypos-session", JSON.stringify(state.localSession));
 }
 
 function localAuthAction(action, email, password) {

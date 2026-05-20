@@ -102,11 +102,11 @@ button {
   width: 48px;
   min-width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   display: grid;
   place-items: center;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -770,7 +770,7 @@ textarea:focus {
 .auth-hero {
   background:
     linear-gradient(135deg, rgba(0, 0, 0, 0.96), rgba(31, 41, 51, 0.92)),
-    url("/public/pondy-mark-dark-app.png?v=20260521-pondy-assets-2") 78% 26% / min(280px, 34vw) no-repeat;
+    url("/public/pondy-mark-dark-app.png?v=20260521-pondy-assets-3") 78% 26% / min(280px, 34vw) no-repeat;
   color: white;
   padding: clamp(28px, 6vw, 78px);
   display: flex;
@@ -807,11 +807,12 @@ textarea:focus {
 }
 
 .auth-hero-logo {
-  width: clamp(116px, 13vw, 176px);
+  width: clamp(88px, 10vw, 138px);
   height: auto;
   display: block;
   position: relative;
   z-index: 1;
+  opacity: 0.96;
 }
 
 .auth-card {
@@ -823,31 +824,6 @@ textarea:focus {
   justify-content: center;
   gap: 16px;
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.18);
-}
-
-.auth-card-logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 8px;
-}
-
-.auth-card-logo img {
-  width: min(190px, 58%);
-  height: auto;
-  border-radius: 0;
-  box-shadow: none;
-  display: block;
-}
-
-.auth-card-logo strong {
-  display: block;
-  font-size: 20px;
-}
-
-.auth-card-logo span {
-  color: var(--muted);
-  font-size: 13px;
 }
 
 .auth-plan {
