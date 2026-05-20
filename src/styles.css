@@ -1,21 +1,21 @@
 :root {
   color-scheme: light;
-  --ink: #241916;
-  --muted: #76665d;
-  --paper: #fff8ef;
-  --wash: #f8efe1;
-  --line: #eadbc9;
+  --ink: #121f1d;
+  --muted: #63716d;
+  --paper: #fffdfa;
+  --wash: #f3f7f2;
+  --line: #dfe7e2;
   --brand: #123d35;
-  --brand-2: #2c7366;
-  --accent: #c9422d;
-  --gold: #d89a2d;
-  --surface: rgba(255, 248, 239, 0.95);
-  --mint: #e4f3df;
-  --sky: #f5ead6;
-  --ok: #287448;
-  --danger: #b02f21;
-  --shadow: 0 18px 45px rgba(68, 38, 24, 0.12);
-  --shadow-soft: 0 8px 24px rgba(68, 38, 24, 0.08);
+  --brand-2: #238174;
+  --accent: #2f8074;
+  --gold: #c58a21;
+  --surface: rgba(255, 253, 250, 0.95);
+  --mint: #e7f5ee;
+  --sky: #e9f2ff;
+  --ok: #137a52;
+  --danger: #ba2f24;
+  --shadow: 0 18px 45px rgba(25, 43, 39, 0.11);
+  --shadow-soft: 0 8px 24px rgba(25, 43, 39, 0.08);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -27,9 +27,9 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    linear-gradient(180deg, rgba(255, 248, 239, 0.9), rgba(248, 239, 225, 0.96)),
-    radial-gradient(circle at 12% 0%, rgba(216, 154, 45, 0.16), transparent 28%),
-    radial-gradient(circle at 96% 12%, rgba(201, 66, 45, 0.11), transparent 26%),
+    linear-gradient(180deg, rgba(255, 253, 250, 0.88), rgba(243, 247, 242, 0.96)),
+    radial-gradient(circle at 18% 0%, rgba(35, 129, 116, 0.13), transparent 30%),
+    radial-gradient(circle at 96% 12%, rgba(47, 128, 116, 0.08), transparent 26%),
     var(--wash);
 }
 
@@ -57,7 +57,7 @@ button {
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #123d35 0%, #5f241c 58%, #261713 100%);
+  background: linear-gradient(180deg, #0f332e 0%, #143d36 48%, #102722 100%);
   color: white;
   padding: 18px 14px;
   display: flex;
@@ -66,7 +66,7 @@ button {
   position: sticky;
   top: 0;
   height: 100vh;
-  box-shadow: 18px 0 45px rgba(68, 38, 24, 0.2);
+  box-shadow: 18px 0 45px rgba(16, 39, 34, 0.18);
   overflow: hidden;
 }
 
@@ -163,7 +163,7 @@ button {
 .nav button:hover {
   background: rgba(255, 255, 255, 0.14);
   color: white;
-  box-shadow: inset 3px 0 0 #d89a2d;
+  box-shadow: inset 3px 0 0 #c58a21;
 }
 
 .nav button span,
@@ -246,12 +246,12 @@ button {
 
 .status-pill.ok {
   color: var(--ok);
-  background: #eef6df;
+  background: #edf8f2;
 }
 
 .status-pill.danger {
   color: var(--danger);
-  background: #fff0dc;
+  background: #fff0ed;
 }
 
 .grid {
@@ -287,7 +287,7 @@ button {
   padding: 16px;
   position: relative;
   overflow: hidden;
-  border-top: 3px solid rgba(216, 154, 45, 0.58);
+  border-top: 3px solid rgba(35, 129, 116, 0.42);
 }
 
 .metric::after {
@@ -298,7 +298,7 @@ button {
   right: -38px;
   top: -42px;
   border-radius: 999px;
-  background: rgba(216, 154, 45, 0.16);
+  background: rgba(47, 128, 116, 0.1);
 }
 
 .metric span {
@@ -388,7 +388,7 @@ textarea:focus {
 
 .button.secondary {
   color: var(--brand);
-  background: #fff0dc;
+  background: #e7f5ee;
   box-shadow: none;
 }
 
@@ -414,7 +414,7 @@ textarea:focus {
   height: 38px;
   justify-content: center;
   border-radius: 8px;
-  background: #fff0dc;
+  background: #edf6f2;
   color: var(--brand);
 }
 
@@ -432,8 +432,8 @@ textarea:focus {
   border-radius: 8px;
   padding: clamp(22px, 4vw, 36px);
   background:
-    linear-gradient(135deg, rgba(36, 25, 22, 0.94), rgba(95, 36, 28, 0.9), rgba(18, 61, 53, 0.88)),
-    radial-gradient(circle at 78% 18%, rgba(216, 154, 45, 0.42), transparent 30%);
+    linear-gradient(135deg, rgba(18, 60, 53, 0.96), rgba(47, 128, 116, 0.9)),
+    radial-gradient(circle at 78% 18%, rgba(197, 138, 33, 0.38), transparent 30%);
   box-shadow: var(--shadow);
   margin-bottom: 16px;
 }
@@ -479,7 +479,7 @@ textarea:focus {
   padding: 16px;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: rgba(255, 248, 239, 0.95);
+  background: rgba(255, 253, 250, 0.94);
   color: var(--ink);
   box-shadow: var(--shadow);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -487,13 +487,13 @@ textarea:focus {
 
 .table-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(216, 154, 45, 0.55);
-  box-shadow: 0 20px 44px rgba(68, 38, 24, 0.14);
+  border-color: rgba(47, 128, 116, 0.45);
+  box-shadow: 0 20px 44px rgba(25, 43, 39, 0.13);
 }
 
 .table-card.occupied {
-  background: linear-gradient(180deg, #fff8ef, #fff0dc);
-  border-color: rgba(201, 66, 45, 0.42);
+  background: linear-gradient(180deg, #fffdfa, #eef7f3);
+  border-color: rgba(47, 128, 116, 0.42);
 }
 
 .table-card-top,
@@ -517,12 +517,12 @@ textarea:focus {
   display: grid;
   place-items: center;
   color: var(--brand);
-  background: #fff0dc;
+  background: #edf8f2;
 }
 
 .table-card.occupied .table-card-top span {
   color: var(--accent);
-  background: #fde4d9;
+  background: #e7f5ee;
 }
 
 .table-card h4 {
@@ -551,7 +551,7 @@ textarea:focus {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 248, 239, 0.92);
+  background: rgba(255, 253, 250, 0.9);
   box-shadow: var(--shadow);
 }
 
@@ -574,14 +574,14 @@ textarea:focus {
 
 .product-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 38px rgba(68, 38, 24, 0.13);
+  box-shadow: 0 18px 38px rgba(25, 43, 39, 0.13);
 }
 
 .product-art {
   aspect-ratio: 4 / 3;
   background:
-    linear-gradient(135deg, rgba(216, 154, 45, 0.18), rgba(201, 66, 45, 0.1)),
-    #fff0dc;
+    linear-gradient(135deg, rgba(18, 60, 53, 0.1), rgba(47, 128, 116, 0.08)),
+    #eef7f3;
   display: grid;
   place-items: center;
   color: var(--brand);
@@ -763,12 +763,12 @@ textarea:focus {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
-  background: #241916;
+  background: #102722;
 }
 
 .auth-hero {
   background:
-    linear-gradient(135deg, rgba(36, 25, 22, 0.96), rgba(95, 36, 28, 0.9), rgba(18, 61, 53, 0.92)),
+    linear-gradient(135deg, rgba(13, 39, 35, 0.96), rgba(24, 91, 82, 0.92)),
     url("/public/pondypos-logo.svg") 78% 26% / min(280px, 34vw) no-repeat;
   color: white;
   padding: clamp(28px, 6vw, 78px);
@@ -784,7 +784,7 @@ textarea:focus {
   position: absolute;
   inset: auto 0 0;
   height: 160px;
-  background: linear-gradient(180deg, transparent, rgba(36, 25, 22, 0.58));
+  background: linear-gradient(180deg, transparent, rgba(13, 39, 35, 0.5));
   pointer-events: none;
 }
 
@@ -807,7 +807,7 @@ textarea:focus {
 
 .auth-card {
   background:
-    linear-gradient(180deg, rgba(255, 248, 239, 0.98), rgba(252, 242, 226, 0.98));
+    linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(244, 250, 247, 0.98));
   padding: 30px;
   display: flex;
   flex-direction: column;
@@ -846,9 +846,9 @@ textarea:focus {
   gap: 12px;
   padding: 14px;
   border-radius: 8px;
-  background: #fff0dc;
+  background: #e7f5ee;
   color: var(--brand);
-  border: 1px solid #efd0a1;
+  border: 1px solid #cde7dc;
 }
 
 .auth-plan span {
@@ -961,8 +961,8 @@ textarea:focus {
   border-radius: 8px;
   padding: clamp(22px, 4vw, 38px);
   background:
-    linear-gradient(135deg, rgba(36, 25, 22, 0.98), rgba(95, 36, 28, 0.9), rgba(18, 61, 53, 0.88)),
-    radial-gradient(circle at 80% 20%, rgba(216, 154, 45, 0.42), transparent 26%);
+    linear-gradient(135deg, rgba(18, 60, 53, 0.98), rgba(47, 128, 116, 0.92)),
+    radial-gradient(circle at 80% 20%, rgba(197, 138, 33, 0.42), transparent 26%);
   box-shadow: var(--shadow);
 }
 
