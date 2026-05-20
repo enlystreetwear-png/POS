@@ -3,11 +3,12 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260521-pondy-assets-3";
+const assetVersion = "20260521-pondy-assets-4";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
 const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
+const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 
 const demoProducts = [
   { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
@@ -123,8 +124,20 @@ function addYears(date, years) {
 function readLocalSession() {
   migrateStorageKey("countercloud-session", "pondypos-session");
   try {
-    return JSON.parse(localStorage.getItem("pondypos-session")) || null;
+    const savedSession = JSON.parse(localStorage.getItem("pondypos-session")) || null;
+    if (savedSession) return savedSession;
+    const pendingGoogle = JSON.parse(localStorage.getItem(googleRedirectSessionKey)) || null;
+    if (pendingGoogle?.expiresAt > Date.now()) {
+      return {
+        email: pendingGoogle.email || "Google account",
+        firebase: true,
+        googlePending: true
+      };
+    }
+    localStorage.removeItem(googleRedirectSessionKey);
+    return null;
   } catch {
+    localStorage.removeItem(googleRedirectSessionKey);
     return null;
   }
 }
@@ -814,6 +827,7 @@ function bindEvents() {
     if (state.user) await state.auth.signOut();
     state.localSession = null;
     localStorage.removeItem("pondypos-session");
+    localStorage.removeItem(googleRedirectSessionKey);
     render();
   });
 }
@@ -1004,8 +1018,10 @@ async function googleSignIn() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   try {
+    rememberGoogleRedirectStart();
     await signInWithRedirect(state.auth, provider);
   } catch (error) {
+    localStorage.removeItem(googleRedirectSessionKey);
     state.authBusy = false;
     state.authError = friendlyAuthError(error);
     render();
@@ -1034,6 +1050,14 @@ function rememberSignedInUser(user) {
     firebase: true
   };
   localStorage.setItem("pondypos-session", JSON.stringify(state.localSession));
+  localStorage.removeItem(googleRedirectSessionKey);
+}
+
+function rememberGoogleRedirectStart() {
+  localStorage.setItem(googleRedirectSessionKey, JSON.stringify({
+    email: "Google account",
+    expiresAt: Date.now() + 10 * 60 * 1000
+  }));
 }
 
 function localAuthAction(action, email, password) {

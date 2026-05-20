@@ -115,6 +115,7 @@ button {
   height: 100%;
   object-fit: contain;
   display: block;
+  mix-blend-mode: screen;
 }
 
 .brand h1 {
@@ -770,7 +771,7 @@ textarea:focus {
 .auth-hero {
   background:
     linear-gradient(135deg, rgba(0, 0, 0, 0.96), rgba(31, 41, 51, 0.92)),
-    url("/public/pondy-mark-dark-app.png?v=20260521-pondy-assets-3") 78% 26% / min(280px, 34vw) no-repeat;
+    url("/public/pondy-mark-dark-app.png?v=20260521-pondy-assets-4") 78% 26% / min(280px, 34vw) no-repeat;
   color: white;
   padding: clamp(28px, 6vw, 78px);
   display: flex;
@@ -813,6 +814,7 @@ textarea:focus {
   position: relative;
   z-index: 1;
   opacity: 0.96;
+  mix-blend-mode: screen;
 }
 
 .auth-card {
