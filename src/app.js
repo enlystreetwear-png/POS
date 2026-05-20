@@ -130,10 +130,18 @@ async function initFirebase() {
   authMod.onAuthStateChanged(state.auth, async (user) => {
     state.user = user;
     state.tenantId = user?.uid || "demo";
-    if (user) await pullCloudData();
     state.authReady = true;
     state.authBusy = false;
     render();
+    if (user) {
+      try {
+        await pullCloudData();
+        render();
+      } catch (error) {
+        console.warn("Cloud sync failed", error);
+        state.authError = "";
+      }
+    }
   });
 }
 
@@ -817,9 +825,12 @@ async function authAction(action) {
   }
   const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = state.firebase.authMod;
   try {
-    if (action === "signin") await signInWithEmailAndPassword(state.auth, email, password);
-    else {
-      await createUserWithEmailAndPassword(state.auth, email, password);
+    if (action === "signin") {
+      const credential = await signInWithEmailAndPassword(state.auth, email, password);
+      await finishSignedInUser(credential.user);
+    } else {
+      const credential = await createUserWithEmailAndPassword(state.auth, email, password);
+      await finishSignedInUser(credential.user);
       await renewSubscription();
     }
   } catch (error) {
@@ -848,7 +859,8 @@ async function googleSignIn() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   try {
-    await signInWithPopup(state.auth, provider);
+    const credential = await signInWithPopup(state.auth, provider);
+    await finishSignedInUser(credential.user);
   } catch (error) {
     if (["auth/popup-blocked", "auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(error.code)) {
       await signInWithRedirect(state.auth, provider);
@@ -857,6 +869,20 @@ async function googleSignIn() {
     state.authBusy = false;
     state.authError = friendlyAuthError(error);
     render();
+  }
+}
+
+async function finishSignedInUser(user) {
+  state.user = user;
+  state.tenantId = user?.uid || "demo";
+  state.authReady = true;
+  state.authBusy = false;
+  render();
+  try {
+    await pullCloudData();
+    render();
+  } catch (error) {
+    console.warn("Cloud sync failed", error);
   }
 }
 
