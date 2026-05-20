@@ -37,6 +37,9 @@ const seed = {
 
 const state = {
   view: "pos",
+  firebaseConfigured: hasFirebaseConfig(),
+  authReady: !hasFirebaseConfig(),
+  authBusy: false,
   cloudReady: false,
   user: null,
   db: null,
@@ -95,9 +98,17 @@ function readLocalSession() {
   }
 }
 
+function hasFirebaseConfig() {
+  const config = window.FIREBASE_CONFIG || {};
+  return Boolean(config.apiKey && config.projectId);
+}
+
 async function initFirebase() {
   const config = window.FIREBASE_CONFIG || {};
-  if (!config.apiKey || !config.projectId) return;
+  if (!config.apiKey || !config.projectId) {
+    state.authReady = true;
+    return;
+  }
   const firebase = await Promise.all([
     import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
     import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
@@ -120,6 +131,8 @@ async function initFirebase() {
     state.user = user;
     state.tenantId = user?.uid || "demo";
     if (user) await pullCloudData();
+    state.authReady = true;
+    state.authBusy = false;
     render();
   });
 }
@@ -199,6 +212,11 @@ function render() {
 }
 
 function renderAuth() {
+  const waitingForFirebase = state.firebaseConfigured && !state.authReady;
+  const authDisabled = state.authBusy || waitingForFirebase;
+  const loginText = state.authBusy ? "Signing in..." : "Sign in";
+  const createText = state.authBusy ? "Creating account..." : "Create account";
+  const googleText = waitingForFirebase ? "Connecting to Firebase..." : state.authBusy ? "Opening Google..." : "Continue with Google";
   return `
     <main class="auth">
       <section class="auth-hero">
@@ -215,13 +233,14 @@ function renderAuth() {
           <div><strong>Annual POS subscription</strong><span>1 year access • ${money(seed.subscription.amount)} / store</span></div>
         </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
+        ${waitingForFirebase ? `<div class="auth-loading">${icon("loader-circle")}<span>Connecting to Firebase. Login will be ready in a moment.</span></div>` : ""}
         <h2>Sign in to your store</h2>
         <p class="auth-note">New store owner? Use Create account first, then sign in later with the same email.</p>
         <div class="field"><label>Email</label><input class="input" id="email" type="email" placeholder="owner@example.com"></div>
         <div class="field"><label>Password</label><input class="input" id="password" type="password" placeholder="Minimum 6 characters"></div>
-        <button class="button" id="signin">${icon("log-in")} Sign in</button>
-        <button class="button secondary" id="signup">${icon("user-plus")} Create account</button>
-        <button class="button google" id="google-signin">${icon("chrome")} Continue with Google</button>
+        <button class="button" id="signin" ${authDisabled ? "disabled" : ""}>${icon("log-in")} ${loginText}</button>
+        <button class="button secondary" id="signup" ${authDisabled ? "disabled" : ""}>${icon("user-plus")} ${createText}</button>
+        <button class="button google" id="google-signin" ${authDisabled ? "disabled" : ""}>${icon("chrome")} ${googleText}</button>
         <button class="ghost-button button secondary" id="demo-mode">${icon("monitor-smartphone")} Try POS demo</button>
       </section>
     </main>
@@ -776,6 +795,7 @@ async function saveCustomer() {
 }
 
 async function authAction(action) {
+  if (state.authBusy) return;
   const email = document.querySelector("#email").value.trim();
   const password = document.querySelector("#password").value;
   state.authError = "";
@@ -784,7 +804,14 @@ async function authAction(action) {
     render();
     return;
   }
-  if (!state.cloudReady) {
+  if (state.firebaseConfigured && !state.cloudReady) {
+    state.authError = "Firebase is still connecting. Please try again in a moment.";
+    render();
+    return;
+  }
+  state.authBusy = true;
+  render();
+  if (!state.firebaseConfigured) {
     localAuthAction(action, email, password);
     return;
   }
@@ -796,18 +823,27 @@ async function authAction(action) {
       await renewSubscription();
     }
   } catch (error) {
+    state.authBusy = false;
     state.authError = friendlyAuthError(error);
     render();
   }
 }
 
 async function googleSignIn() {
+  if (state.authBusy) return;
   state.authError = "";
-  if (!state.cloudReady) {
+  if (state.firebaseConfigured && !state.cloudReady) {
+    state.authError = "Firebase is still connecting. Please try Google again in a moment.";
+    render();
+    return;
+  }
+  if (!state.firebaseConfigured) {
     state.authError = "Add Firebase config first, then enable Google sign-in in Firebase Authentication.";
     render();
     return;
   }
+  state.authBusy = true;
+  render();
   const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = state.firebase.authMod;
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
@@ -818,6 +854,7 @@ async function googleSignIn() {
       await signInWithRedirect(state.auth, provider);
       return;
     }
+    state.authBusy = false;
     state.authError = friendlyAuthError(error);
     render();
   }
@@ -837,6 +874,7 @@ function localAuthAction(action, email, password) {
   }
   state.localSession = { email };
   localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
+  state.authBusy = false;
   render();
 }
 
