@@ -769,7 +769,7 @@ textarea:focus {
 .auth-hero {
   background:
     linear-gradient(135deg, rgba(13, 39, 35, 0.96), rgba(24, 91, 82, 0.92)),
-    url("/public/pondypos-logo.svg") 78% 26% / min(280px, 34vw) no-repeat;
+    url("/public/pondypos-logo.svg?v=20260521-green") 78% 26% / min(280px, 34vw) no-repeat;
   color: white;
   padding: clamp(28px, 6vw, 78px);
   display: flex;

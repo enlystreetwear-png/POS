@@ -3,6 +3,9 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
+const assetVersion = "20260521-green";
+const logoUrl = `/public/pondypos-logo.svg?v=${assetVersion}`;
+
 const demoProducts = [
   { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
   { id: crypto.randomUUID(), name: "Paneer Butter Masala", sku: "CUR-102", category: "Curries", price: 220, cost: 96, stock: 45, imageUrl: "" },
@@ -285,7 +288,7 @@ function renderAuth() {
     <main class="auth">
       <section class="auth-hero">
         <div class="brand" style="margin-bottom:42px">
-          <div class="brand-mark"><img src="/public/pondypos-logo.svg" alt="PondyPOS"></div>
+          <div class="brand-mark"><img src="${logoUrl}" alt="PondyPOS"></div>
           <div><h1 style="font-size:20px">PondyPOS</h1><span>Restaurant SaaS POS</span></div>
         </div>
         <span class="eyebrow">Cloud restaurant operations</span>
@@ -299,7 +302,7 @@ function renderAuth() {
       </section>
       <section class="auth-card">
         <div class="auth-card-logo">
-          <img src="/public/pondypos-logo.svg" alt="PondyPOS">
+          <img src="${logoUrl}" alt="PondyPOS">
           <div><strong>PondyPOS</strong><span>Restaurant SaaS console</span></div>
         </div>
         <div class="auth-plan">
@@ -347,7 +350,7 @@ function renderBrand() {
   return `
     <div class="brand">
       <button class="brand-toggle" id="brand-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
-        <span class="brand-mark"><img src="/public/pondypos-logo.svg" alt="PondyPOS"></span>
+        <span class="brand-mark"><img src="${logoUrl}" alt="PondyPOS"></span>
         <span class="brand-text"><h1>PondyPOS</h1><span>Restaurant POS</span></span>
       </button>
     </div>
