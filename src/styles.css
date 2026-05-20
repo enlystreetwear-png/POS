@@ -333,6 +333,148 @@ textarea:focus {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 
+.table-hero {
+  min-height: 220px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+  color: white;
+  border-radius: 8px;
+  padding: clamp(22px, 4vw, 36px);
+  background:
+    linear-gradient(135deg, rgba(18, 60, 53, 0.96), rgba(47, 128, 116, 0.9)),
+    radial-gradient(circle at 78% 18%, rgba(240, 193, 93, 0.38), transparent 30%);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+
+.table-hero h3 {
+  margin: 6px 0 10px;
+  font-size: clamp(30px, 5vw, 52px);
+  line-height: 1;
+}
+
+.table-hero p {
+  margin: 0;
+  max-width: 620px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.table-summary {
+  min-width: 150px;
+  padding: 18px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.table-summary strong {
+  display: block;
+  font-size: 36px;
+}
+
+.table-summary span {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.table-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+.table-card {
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 250, 0.94);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.table-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(47, 128, 116, 0.45);
+}
+
+.table-card.occupied {
+  background: linear-gradient(180deg, #fffdfa, #fff4ee);
+  border-color: rgba(227, 93, 62, 0.38);
+}
+
+.table-card-top,
+.table-card-footer,
+.table-context,
+.table-context div {
+  display: flex;
+  align-items: center;
+}
+
+.table-card-top,
+.table-card-footer {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.table-card-top span {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  background: #edf8f2;
+}
+
+.table-card.occupied .table-card-top span {
+  color: var(--accent);
+  background: #fff0ed;
+}
+
+.table-card h4 {
+  margin: 18px 0 4px;
+  font-size: 22px;
+}
+
+.table-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.table-card-footer {
+  margin-top: 18px;
+  color: var(--muted);
+}
+
+.table-card-footer strong {
+  color: var(--ink);
+}
+
+.table-context {
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.table-context div {
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.table-context span {
+  color: var(--muted);
+}
+
 .product-card {
   overflow: hidden;
   text-align: left;
@@ -839,9 +981,19 @@ textarea:focus {
   }
 
   .subscription-hero,
+  .table-hero,
   .subscription-alert {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .table-context {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .table-context div {
+    justify-content: flex-start;
   }
 
   .plan-facts {

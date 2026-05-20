@@ -20,6 +20,17 @@ const seed = {
     taxRate: 18,
     invoicePrefix: "CC"
   },
+  tables: [
+    { id: "T1", name: "Table 1", seats: 2 },
+    { id: "T2", name: "Table 2", seats: 4 },
+    { id: "T3", name: "Table 3", seats: 4 },
+    { id: "T4", name: "Table 4", seats: 6 },
+    { id: "T5", name: "Table 5", seats: 2 },
+    { id: "T6", name: "Table 6", seats: 4 },
+    { id: "T7", name: "Table 7", seats: 6 },
+    { id: "T8", name: "Takeaway", seats: 0 }
+  ],
+  openBills: {},
   subscription: {
     plan: "Annual POS",
     status: "active",
@@ -48,7 +59,7 @@ const state = {
   localSession: readLocalSession(),
   tenantId: "demo",
   data: readLocal(),
-  cart: [],
+  selectedTableId: "",
   search: "",
   modal: null,
   authError: "",
@@ -78,6 +89,8 @@ function normalizeData(data) {
     ...data,
     settings: { ...freshSeed.settings, ...(data.settings || {}) },
     subscription: { ...freshSeed.subscription, ...(data.subscription || {}) },
+    tables: data.tables?.length ? data.tables : freshSeed.tables,
+    openBills: data.openBills || {},
     products: data.products?.length ? data.products : freshSeed.products,
     customers: data.customers?.length ? data.customers : freshSeed.customers,
     sales: data.sales || []
@@ -194,7 +207,26 @@ function subscriptionDaysLeft() {
   return Math.max(0, Math.ceil((expiresAt - new Date()) / 86400000));
 }
 
-function totals(cart = state.cart) {
+function currentCart() {
+  if (!state.selectedTableId) return [];
+  state.data.openBills[state.selectedTableId] ||= [];
+  return state.data.openBills[state.selectedTableId];
+}
+
+function setCurrentCart(cart) {
+  if (!state.selectedTableId) return;
+  state.data.openBills[state.selectedTableId] = cart;
+}
+
+function selectedTable() {
+  return state.data.tables.find((table) => table.id === state.selectedTableId);
+}
+
+function tableTotal(tableId) {
+  return (state.data.openBills[tableId] || []).reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+function totals(cart = currentCart()) {
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
   const discount = Number(document.querySelector("#discount")?.value || 0);
   const taxRate = Number(state.data.settings.taxRate || 0);
@@ -205,6 +237,7 @@ function totals(cart = state.cart) {
 
 function setView(view) {
   state.view = view;
+  if (view === "pos") state.selectedTableId = "";
   state.modal = null;
   render();
 }
@@ -359,12 +392,19 @@ function metric(label, value, iconName) {
 }
 
 function renderPOS() {
+  if (!state.selectedTableId) return renderTablePicker();
   const filtered = state.data.products.filter((product) =>
     [product.name, product.sku, product.category].join(" ").toLowerCase().includes(state.search.toLowerCase())
   );
   const locked = !isSubscriptionActive();
+  const table = selectedTable();
+  const cart = currentCart();
   return `
     ${locked ? renderSubscriptionBanner() : ""}
+    <section class="table-context">
+      <button class="button secondary" id="back-to-tables">${icon("arrow-left")} Tables</button>
+      <div><strong>${table?.name || "Selected table"}</strong><span>${cart.length} items in current bill</span></div>
+    </section>
     <section class="grid pos-grid">
       <div class="panel">
         <div class="panel-header">
@@ -376,8 +416,8 @@ function renderPOS() {
         </div>
       </div>
       <aside class="panel">
-        <div class="panel-header"><h3>Current bill</h3><button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button></div>
-        <div class="cart-list">${state.cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to the bill</div>`}</div>
+        <div class="panel-header"><h3>${table?.name || "Current bill"}</h3><button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button></div>
+        <div class="cart-list">${cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to this table bill</div>`}</div>
         <div class="form-grid" style="margin-top:14px">
           <div class="field"><label>Customer</label><select id="customer">${state.data.customers.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
           <div class="field"><label>Payment</label><select id="payment"><option>Cash</option><option>UPI</option><option>Card</option><option>Credit</option></select></div>
@@ -388,6 +428,43 @@ function renderPOS() {
         <button class="button" id="checkout" style="width:100%;margin-top:14px" ${locked ? "disabled" : ""}>${icon("receipt-text")} Complete billing</button>
       </aside>
     </section>
+  `;
+}
+
+function renderTablePicker() {
+  const occupied = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length).length;
+  return `
+    <section class="table-hero">
+      <div>
+        <span class="eyebrow">Billing starts here</span>
+        <h3>Select a table</h3>
+        <p>Choose a table first, then add products and complete the bill for that table.</p>
+      </div>
+      <div class="table-summary"><strong>${occupied}</strong><span>open bills</span></div>
+    </section>
+    <section class="grid table-grid">
+      ${state.data.tables.map(renderTableCard).join("")}
+    </section>
+  `;
+}
+
+function renderTableCard(table) {
+  const cart = state.data.openBills[table.id] || [];
+  const itemCount = cart.reduce((sum, item) => sum + item.qty, 0);
+  const occupied = itemCount > 0;
+  return `
+    <button class="table-card ${occupied ? "occupied" : ""}" data-table="${table.id}">
+      <div class="table-card-top">
+        <span>${icon(occupied ? "utensils" : "circle", 18)}</span>
+        <strong>${occupied ? "Open" : "Free"}</strong>
+      </div>
+      <h4>${table.name}</h4>
+      <p>${table.seats ? `${table.seats} seats` : "Counter order"}</p>
+      <div class="table-card-footer">
+        <span>${itemCount} items</span>
+        <strong>${money(tableTotal(table.id))}</strong>
+      </div>
+    </button>
   `;
 }
 
@@ -554,7 +631,7 @@ function renderSaleList(sales) {
   if (!sales.length) return `<div class="empty">No invoices yet</div>`;
   return `<div class="sale-list">${sales.map((sale) => `
     <div class="sale-row">
-      <div><h4>${sale.invoiceNo} • ${sale.customerName}</h4><p>${new Date(sale.createdAt).toLocaleString()} • ${sale.paymentMethod} • ${sale.items.length} items</p></div>
+      <div><h4>${sale.invoiceNo} • ${sale.tableName || "No table"} • ${sale.customerName}</h4><p>${new Date(sale.createdAt).toLocaleString()} • ${sale.paymentMethod} • ${sale.items.length} items</p></div>
       <div style="display:flex;align-items:center;gap:10px"><strong>${money(sale.total)}</strong><button class="icon-button" data-receipt="${sale.id}" title="Receipt">${icon("printer")}</button></div>
     </div>
   `).join("")}</div>`;
@@ -624,7 +701,7 @@ function receiptMarkup(sale) {
     <div class="receipt">
       <h3>${settings.shopName}</h3>
       <small>${settings.address || ""}<br>${settings.phone || ""} ${settings.gstin ? `GSTIN: ${settings.gstin}` : ""}</small>
-      <p>Invoice: ${sale.invoiceNo}<br>Date: ${new Date(sale.createdAt).toLocaleString()}<br>Customer: ${sale.customerName}</p>
+      <p>Invoice: ${sale.invoiceNo}<br>Date: ${new Date(sale.createdAt).toLocaleString()}<br>Table: ${sale.tableName || "No table"}<br>Customer: ${sale.customerName}</p>
       <hr>
       ${sale.items.map((item) => `<p>${item.name}<br>${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}</p>`).join("")}
       <hr>
@@ -638,6 +715,16 @@ function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
   });
+  document.querySelectorAll("[data-table]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedTableId = button.dataset.table;
+      render();
+    });
+  });
+  document.querySelector("#back-to-tables")?.addEventListener("click", () => {
+    state.selectedTableId = "";
+    render();
+  });
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
     render();
@@ -647,7 +734,11 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1)));
   document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1)));
-  document.querySelector("#clear-cart")?.addEventListener("click", () => { state.cart = []; render(); });
+  document.querySelector("#clear-cart")?.addEventListener("click", async () => {
+    setCurrentCart([]);
+    await persist();
+    render();
+  });
   document.querySelector("#discount")?.addEventListener("input", updateSummaryOnly);
   document.querySelector("#paid")?.addEventListener("input", updateSummaryOnly);
   document.querySelector("#checkout")?.addEventListener("click", checkout);
@@ -689,19 +780,24 @@ function updateSummaryOnly() {
 }
 
 function addToCart(id) {
+  if (!state.selectedTableId) return;
   const product = state.data.products.find((item) => item.id === id);
   if (!product || Number(product.stock) <= 0) return alert("This product is out of stock.");
-  const existing = state.cart.find((item) => item.id === id);
+  const cart = currentCart();
+  const existing = cart.find((item) => item.id === id);
   if (existing) existing.qty += 1;
-  else state.cart.push({ id: product.id, name: product.name, price: Number(product.price), qty: 1 });
+  else cart.push({ id: product.id, name: product.name, price: Number(product.price), qty: 1 });
+  persist();
   render();
 }
 
 function changeQty(id, amount) {
-  const item = state.cart.find((cartItem) => cartItem.id === id);
+  const cart = currentCart();
+  const item = cart.find((cartItem) => cartItem.id === id);
   if (!item) return;
   item.qty += amount;
-  state.cart = state.cart.filter((cartItem) => cartItem.qty > 0);
+  setCurrentCart(cart.filter((cartItem) => cartItem.qty > 0));
+  persist();
   render();
 }
 
@@ -711,7 +807,9 @@ async function checkout() {
     render();
     return;
   }
-  if (!state.cart.length) return alert("Add products before billing.");
+  const cart = currentCart();
+  const table = selectedTable();
+  if (!cart.length) return alert("Add products before billing.");
   const customer = state.data.customers.find((item) => item.id === document.querySelector("#customer").value) || state.data.customers[0];
   const current = totals();
   const sale = {
@@ -720,18 +818,21 @@ async function checkout() {
     createdAt: new Date().toISOString(),
     customerId: customer.id,
     customerName: customer.name,
+    tableId: table?.id || "",
+    tableName: table?.name || "No table",
     paymentMethod: document.querySelector("#payment").value,
     paid: Number(document.querySelector("#paid").value || current.total),
-    items: structuredClone(state.cart),
+    items: structuredClone(cart),
     ...current
   };
   state.data.sales.unshift(sale);
   state.data.products = state.data.products.map((product) => {
-    const item = state.cart.find((cartItem) => cartItem.id === product.id);
+    const item = cart.find((cartItem) => cartItem.id === product.id);
     return item ? { ...product, stock: Math.max(0, Number(product.stock) - item.qty) } : product;
   });
   state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
-  state.cart = [];
+  state.data.openBills[state.selectedTableId] = [];
+  state.selectedTableId = "";
   await persist();
   state.modal = { type: "receipt", sale };
   render();
