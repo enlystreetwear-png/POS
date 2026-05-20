@@ -5,15 +5,15 @@
       <stop offset="0.52" stop-color="#123d35"/>
       <stop offset="1" stop-color="#0b2420"/>
     </linearGradient>
-    <linearGradient id="pp-gold" x1="66" y1="44" x2="170" y2="188" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffe2a0"/>
-      <stop offset="1" stop-color="#c58a21"/>
+    <linearGradient id="pp-blue" x1="66" y1="44" x2="170" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9edbd2"/>
+      <stop offset="1" stop-color="#2f6f9f"/>
     </linearGradient>
   </defs>
   <rect x="16" y="16" width="208" height="208" rx="52" fill="url(#pp-bg)"/>
-  <circle cx="120" cy="120" r="78" fill="#fff7ec" opacity="0.96"/>
+  <circle cx="120" cy="120" r="78" fill="#ffffff" opacity="0.96"/>
   <path d="M68 171V67h48c24 0 41 15 41 37s-17 37-41 37H96v30H68Zm28-55h17c9 0 15-5 15-12s-6-12-15-12H96v24Z" fill="#123d35"/>
   <path d="M121 171V67h48c24 0 41 15 41 37s-17 37-41 37h-20v30h-28Zm28-55h17c9 0 15-5 15-12s-6-12-15-12h-17v24Z" fill="#238174"/>
-  <path d="M65 187h110" stroke="url(#pp-gold)" stroke-width="10" stroke-linecap="round"/>
-  <path d="M64 54c14-16 34-25 56-25s42 9 56 25" stroke="url(#pp-gold)" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M65 187h110" stroke="url(#pp-blue)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M64 54c14-16 34-25 56-25s42 9 56 25" stroke="url(#pp-blue)" stroke-width="8" stroke-linecap="round" fill="none"/>
 </svg>
