@@ -4,19 +4,19 @@ const currency = new Intl.NumberFormat("en-IN", {
 });
 
 const demoProducts = [
-  { id: crypto.randomUUID(), name: "Masala Tea", sku: "TEA-001", category: "Cafe", price: 20, cost: 9, stock: 100, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Veg Sandwich", sku: "FOOD-101", category: "Food", price: 90, cost: 42, stock: 36, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Cold Coffee", sku: "CAF-203", category: "Cafe", price: 120, cost: 55, stock: 28, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Notebook", sku: "STA-010", category: "Retail", price: 60, cost: 34, stock: 48, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "USB Cable", sku: "ELE-444", category: "Electronics", price: 180, cost: 95, stock: 22, imageUrl: "" }
+  { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
+  { id: crypto.randomUUID(), name: "Paneer Butter Masala", sku: "CUR-102", category: "Curries", price: 220, cost: 96, stock: 45, imageUrl: "" },
+  { id: crypto.randomUUID(), name: "Veg Biryani", sku: "RIC-210", category: "Rice Bowls", price: 180, cost: 82, stock: 55, imageUrl: "" },
+  { id: crypto.randomUUID(), name: "Tandoori Roti", sku: "BRD-011", category: "Breads", price: 35, cost: 12, stock: 120, imageUrl: "" },
+  { id: crypto.randomUUID(), name: "Fresh Lime Soda", sku: "BEV-044", category: "Beverages", price: 70, cost: 24, stock: 60, imageUrl: "" }
 ];
 
 const seed = {
   settings: {
-    shopName: "CounterCloud Store",
+    shopName: "CounterCloud Restaurant",
     gstin: "",
     phone: "",
-    address: "Your store address",
+    address: "Your restaurant address",
     taxRate: 18,
     invoicePrefix: "CC"
   },
@@ -48,6 +48,7 @@ const seed = {
 
 const state = {
   view: "pos",
+  sidebarExpanded: localStorage.getItem("countercloud-sidebar-expanded") === "true",
   firebaseConfigured: hasFirebaseConfig(),
   authReady: !hasFirebaseConfig(),
   authBusy: false,
@@ -84,17 +85,26 @@ function writeLocal() {
 
 function normalizeData(data) {
   const freshSeed = structuredClone(seed);
+  const settings = { ...freshSeed.settings, ...(data.settings || {}) };
+  if (settings.shopName === "CounterCloud Store") settings.shopName = freshSeed.settings.shopName;
+  if (settings.address === "Your store address") settings.address = freshSeed.settings.address;
   return {
     ...freshSeed,
     ...data,
-    settings: { ...freshSeed.settings, ...(data.settings || {}) },
+    settings,
     subscription: { ...freshSeed.subscription, ...(data.subscription || {}) },
     tables: data.tables?.length ? data.tables : freshSeed.tables,
     openBills: data.openBills || {},
-    products: data.products?.length ? data.products : freshSeed.products,
+    products: shouldUseRestaurantSeed(data.products) ? freshSeed.products : data.products,
     customers: data.customers?.length ? data.customers : freshSeed.customers,
     sales: data.sales || []
   };
+}
+
+function shouldUseRestaurantSeed(products = []) {
+  if (!products.length) return true;
+  const oldDemoNames = ["Notebook", "USB Cable", "Veg Sandwich", "Cold Coffee"];
+  return products.some((product) => oldDemoNames.includes(product.name));
 }
 
 function addYears(date, years) {
@@ -263,10 +273,10 @@ function renderAuth() {
       <section class="auth-hero">
         <div class="brand" style="margin-bottom:42px">
           <div class="brand-mark">${icon("scan-barcode")}</div>
-          <div><h1 style="font-size:20px">CounterCloud</h1><span>Firebase SaaS POS</span></div>
+          <div><h1 style="font-size:20px">CounterCloud</h1><span>Restaurant SaaS POS</span></div>
         </div>
-        <h1>CounterCloud POS</h1>
-        <p>Run billing, inventory, customer records, sales, and one-year subscriptions from phone or desktop.</p>
+        <h1>Restaurant POS</h1>
+        <p>Run table billing, menu items, guests, kitchen-friendly orders, and annual subscriptions from phone or desktop.</p>
       </section>
       <section class="auth-card">
         <div class="auth-plan">
@@ -290,14 +300,17 @@ function renderAuth() {
 
 function renderShell() {
   return `
-    <div class="app-shell">
+    <div class="app-shell ${state.sidebarExpanded ? "sidebar-expanded" : "sidebar-collapsed"}">
       <aside class="sidebar">
+        <button class="sidebar-toggle" id="sidebar-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
+          ${icon(state.sidebarExpanded ? "panel-left-close" : "panel-left-open")}
+        </button>
         ${renderBrand()}
         ${renderNav("nav")}
         <div class="sidebar-footer">
-          <div>${currentEmail()}</div>
-          <div>${isSubscriptionActive() ? `${subscriptionDaysLeft()} days left in annual plan` : "Subscription expired"}</div>
-          <button class="button secondary" id="signout">${icon("log-out")} Sign out</button>
+          <div class="sidebar-meta">${currentEmail()}</div>
+          <div class="sidebar-meta">${isSubscriptionActive() ? `${subscriptionDaysLeft()} days left in annual plan` : "Subscription expired"}</div>
+          <button class="button secondary" id="signout" title="Sign out">${icon("log-out")} <span>Sign out</span></button>
         </div>
       </aside>
       <main class="main">
@@ -314,18 +327,18 @@ function renderBrand() {
   return `
     <div class="brand">
       <div class="brand-mark">${icon("scan-barcode")}</div>
-      <div><h1>CounterCloud</h1><span>SaaS POS</span></div>
+      <div class="brand-text"><h1>CounterCloud</h1><span>Restaurant POS</span></div>
     </div>
   `;
 }
 
 function renderNav(className) {
   const items = [
-    ["pos", "shopping-cart", "Billing"],
+    ["pos", "utensils", "Tables"],
     ["dashboard", "layout-dashboard", "Dashboard"],
-    ["products", "boxes", "Products"],
-    ["customers", "users", "Customers"],
-    ["sales", "receipt-text", "Sales"],
+    ["products", "book-open", "Menu"],
+    ["customers", "users", "Guests"],
+    ["sales", "receipt-text", "Orders"],
     ["subscription", "badge-indian-rupee", "Plan"]
   ];
   return `<nav class="${className}">${items.map(([view, iconName, label]) => `
@@ -340,11 +353,11 @@ function renderMobileNav() {
 
 function renderTopbar() {
   const titles = {
-    pos: ["Billing Counter", "Create invoices, accept payment, and print receipts."],
-    dashboard: ["Store Dashboard", "Today’s sales, revenue, and stock health."],
-    products: ["Inventory", "Manage catalog, pricing, stock, and product images."],
-    customers: ["Customers", "Track customer details and purchase totals."],
-    sales: ["Sales History", "Review invoices and reprint receipts."],
+    pos: ["Restaurant Tables", "Select a table, add menu items, accept payment, and print receipts."],
+    dashboard: ["Restaurant Dashboard", "Today’s revenue, open tables, orders, and stock health."],
+    products: ["Menu And Stock", "Manage menu items, kitchen categories, pricing, stock, and images."],
+    customers: ["Guests", "Track guest details and visit totals."],
+    sales: ["Order History", "Review table invoices and reprint receipts."],
     subscription: ["Subscription", "Manage the one-year POS subscription for this store."]
   };
   const [title, sub] = titles[state.view];
@@ -408,8 +421,8 @@ function renderPOS() {
     <section class="grid pos-grid">
       <div class="panel">
         <div class="panel-header">
-          <h3>Catalog</h3>
-          <input class="input search" id="search" placeholder="Search products or scan SKU" value="${state.search}">
+          <h3>Menu</h3>
+          <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${state.search}">
         </div>
         <div class="grid product-grid">
           ${filtered.map(renderProductCard).join("") || `<div class="empty">No products found</div>`}
@@ -522,8 +535,8 @@ function renderProducts() {
   return `
     <section class="panel">
       <div class="panel-header">
-        <h3>Product list</h3>
-        <button class="button" id="new-product">${icon("plus")} Product</button>
+        <h3>Menu items</h3>
+        <button class="button" id="new-product">${icon("plus")} Menu item</button>
       </div>
       <table class="table">
         <thead><tr><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr></thead>
@@ -542,9 +555,9 @@ function renderProducts() {
       </table>
     </section>
     <section class="panel" style="margin-top:16px">
-      <div class="panel-header"><h3>Store settings</h3></div>
+      <div class="panel-header"><h3>Restaurant settings</h3></div>
       <div class="form-grid">
-        ${settingField("shopName", "Shop name")}
+        ${settingField("shopName", "Restaurant name")}
         ${settingField("phone", "Phone")}
         ${settingField("gstin", "GSTIN")}
         ${settingField("taxRate", "Tax rate %", "number")}
@@ -562,7 +575,7 @@ function settingField(key, label, type = "text") {
 function renderCustomers() {
   return `
     <section class="panel">
-      <div class="panel-header"><h3>Customer directory</h3><button class="button" id="new-customer">${icon("user-plus")} Customer</button></div>
+      <div class="panel-header"><h3>Guest directory</h3><button class="button" id="new-customer">${icon("user-plus")} Guest</button></div>
       <div class="customer-list">
         ${state.data.customers.map((customer) => `
           <div class="customer-row">
@@ -578,7 +591,7 @@ function renderCustomers() {
 function renderSales() {
   return `
     <section class="panel">
-      <div class="panel-header"><h3>Invoices</h3></div>
+      <div class="panel-header"><h3>Table invoices</h3></div>
       ${renderSaleList(state.data.sales)}
     </section>
   `;
@@ -648,17 +661,17 @@ function renderProductModal(product = {}) {
   return `
     <div class="modal-backdrop">
       <section class="modal">
-        <div class="panel-header"><h3>${product.id ? "Edit product" : "New product"}</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
+        <div class="panel-header"><h3>${product.id ? "Edit menu item" : "New menu item"}</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
         <div class="form-grid">
           ${productInput("name", "Name", product.name)}
           ${productInput("sku", "SKU", product.sku)}
           ${productInput("category", "Category", product.category)}
-          ${productInput("price", "Selling price", product.price, "number")}
+          ${productInput("price", "Menu price", product.price, "number")}
           ${productInput("cost", "Cost", product.cost, "number")}
           ${productInput("stock", "Stock", product.stock, "number")}
-          <div class="field" style="grid-column:1/-1"><label>Product image</label><input class="input" id="product-image" type="file" accept="image/*"></div>
+          <div class="field" style="grid-column:1/-1"><label>Menu item image</label><input class="input" id="product-image" type="file" accept="image/*"></div>
         </div>
-        <button class="button" id="save-product" data-id="${product.id || ""}" style="margin-top:14px">${icon("save")} Save product</button>
+        <button class="button" id="save-product" data-id="${product.id || ""}" style="margin-top:14px">${icon("save")} Save menu item</button>
       </section>
     </div>
   `;
@@ -672,7 +685,7 @@ function renderCustomerModal() {
   return `
     <div class="modal-backdrop">
       <section class="modal">
-        <div class="panel-header"><h3>New customer</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
+        <div class="panel-header"><h3>New guest</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
         <div class="form-grid">
           <div class="field"><label>Name</label><input class="input" id="customer-name"></div>
           <div class="field"><label>Phone</label><input class="input" id="customer-phone"></div>
@@ -712,6 +725,11 @@ function receiptMarkup(sale) {
 }
 
 function bindEvents() {
+  document.querySelector("#sidebar-toggle")?.addEventListener("click", () => {
+    state.sidebarExpanded = !state.sidebarExpanded;
+    localStorage.setItem("countercloud-sidebar-expanded", String(state.sidebarExpanded));
+    render();
+  });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
   });
