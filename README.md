@@ -12,6 +12,8 @@ A responsive SaaS-style POS app for mobile and desktop. It includes billing, pri
 - Customer directory
 - Product image upload hook for Firebase Storage
 - Firebase Auth, Firestore, and Storage ready
+- Login screen for Firebase accounts or local demo accounts
+- 1 year annual POS subscription record with expiry and renewal flow
 - Demo/local mode when Firebase keys are not configured
 - Vercel deployment config
 
@@ -32,6 +34,14 @@ Open `http://localhost:4173`.
 5. Copy your Firebase web app config into `public/firebase-config.js`.
 
 The app runs in local demo mode until `apiKey` and `projectId` are filled.
+
+## Login And Subscription
+
+- Without Firebase keys, the app uses local browser accounts for testing.
+- With Firebase keys, sign up and sign in use Firebase Authentication.
+- Each store has an annual subscription record in the app data.
+- Billing is locked when the annual plan expires, while dashboard, inventory, customers, and sales history remain viewable.
+- The included renewal button records a 1 year extension. Before taking real payments, connect that button to Razorpay, Stripe, or another payment gateway.
 
 ## Suggested Firestore Rules
 

@@ -20,6 +20,14 @@ const seed = {
     taxRate: 18,
     invoicePrefix: "CC"
   },
+  subscription: {
+    plan: "Annual POS",
+    status: "active",
+    amount: 4999,
+    startedAt: new Date().toISOString(),
+    expiresAt: addYears(new Date(), 1).toISOString(),
+    paymentRef: "DEMO-ANNUAL"
+  },
   products: demoProducts,
   customers: [
     { id: crypto.randomUUID(), name: "Walk-in Customer", phone: "", email: "", totalSpent: 0 }
@@ -34,6 +42,7 @@ const state = {
   db: null,
   storage: null,
   auth: null,
+  localSession: readLocalSession(),
   tenantId: "demo",
   data: readLocal(),
   cart: [],
@@ -46,16 +55,43 @@ const app = document.querySelector("#app");
 
 function readLocal() {
   const saved = localStorage.getItem("countercloud-pos");
-  if (!saved) return structuredClone(seed);
+  if (!saved) return normalizeData(structuredClone(seed));
   try {
-    return { ...structuredClone(seed), ...JSON.parse(saved) };
+    return normalizeData({ ...structuredClone(seed), ...JSON.parse(saved) });
   } catch {
-    return structuredClone(seed);
+    return normalizeData(structuredClone(seed));
   }
 }
 
 function writeLocal() {
   localStorage.setItem("countercloud-pos", JSON.stringify(state.data));
+}
+
+function normalizeData(data) {
+  const freshSeed = structuredClone(seed);
+  return {
+    ...freshSeed,
+    ...data,
+    settings: { ...freshSeed.settings, ...(data.settings || {}) },
+    subscription: { ...freshSeed.subscription, ...(data.subscription || {}) },
+    products: data.products?.length ? data.products : freshSeed.products,
+    customers: data.customers?.length ? data.customers : freshSeed.customers,
+    sales: data.sales || []
+  };
+}
+
+function addYears(date, years) {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() + years);
+  return next;
+}
+
+function readLocalSession() {
+  try {
+    return JSON.parse(localStorage.getItem("countercloud-session")) || null;
+  } catch {
+    return null;
+  }
 }
 
 async function initFirebase() {
@@ -88,7 +124,7 @@ async function pullCloudData() {
   const ref = doc(state.db, "tenants", state.tenantId);
   const snap = await getDoc(ref);
   if (snap.exists()) {
-    state.data = { ...structuredClone(seed), ...snap.data() };
+    state.data = normalizeData({ ...structuredClone(seed), ...snap.data() });
     writeLocal();
   } else {
     await setDoc(ref, state.data);
@@ -107,6 +143,28 @@ async function persist() {
 
 function money(value) {
   return currency.format(Number(value || 0));
+}
+
+function isAuthenticated() {
+  return Boolean(state.user || state.localSession);
+}
+
+function currentEmail() {
+  return state.user?.email || state.localSession?.email || "Local account";
+}
+
+function getSubscription() {
+  return state.data.subscription || seed.subscription;
+}
+
+function isSubscriptionActive() {
+  const subscription = getSubscription();
+  return subscription.status === "active" && new Date(subscription.expiresAt) >= new Date();
+}
+
+function subscriptionDaysLeft() {
+  const expiresAt = new Date(getSubscription().expiresAt);
+  return Math.max(0, Math.ceil((expiresAt - new Date()) / 86400000));
 }
 
 function totals(cart = state.cart) {
@@ -129,7 +187,7 @@ function icon(name, size = 18) {
 }
 
 function render() {
-  app.innerHTML = state.cloudReady && !state.user ? renderAuth() : renderShell();
+  app.innerHTML = !isAuthenticated() ? renderAuth() : renderShell();
   lucide.createIcons();
   bindEvents();
 }
@@ -143,15 +201,19 @@ function renderAuth() {
           <div><h1 style="font-size:20px">CounterCloud</h1><span>Firebase SaaS POS</span></div>
         </div>
         <h1>CounterCloud POS</h1>
-        <p>Run billing, inventory, customer records, and sales from phone or desktop with Firebase on the free Spark plan.</p>
+        <p>Run billing, inventory, customer records, sales, and one-year subscriptions from phone or desktop.</p>
       </section>
       <section class="auth-card">
+        <div class="auth-plan">
+          ${icon("badge-check")}
+          <div><strong>Annual POS subscription</strong><span>1 year access • ${money(seed.subscription.amount)} / store</span></div>
+        </div>
         <h2>Sign in to your store</h2>
         <div class="field"><label>Email</label><input class="input" id="email" type="email" placeholder="owner@example.com"></div>
         <div class="field"><label>Password</label><input class="input" id="password" type="password" placeholder="Minimum 6 characters"></div>
         <button class="button" id="signin">${icon("log-in")} Sign in</button>
         <button class="button secondary" id="signup">${icon("user-plus")} Create account</button>
-        <button class="ghost-button button secondary" id="demo-mode">${icon("monitor-smartphone")} Continue demo mode</button>
+        <button class="ghost-button button secondary" id="demo-mode">${icon("monitor-smartphone")} Try POS demo</button>
       </section>
     </main>
   `;
@@ -164,8 +226,9 @@ function renderShell() {
         ${renderBrand()}
         ${renderNav("nav")}
         <div class="sidebar-footer">
-          <div>${state.user ? state.user.email : "Local demo mode"}</div>
-          <button class="button secondary" id="signout">${icon("log-out")} ${state.user ? "Sign out" : "Reset demo"}</button>
+          <div>${currentEmail()}</div>
+          <div>${isSubscriptionActive() ? `${subscriptionDaysLeft()} days left in annual plan` : "Subscription expired"}</div>
+          <button class="button secondary" id="signout">${icon("log-out")} Sign out</button>
         </div>
       </aside>
       <main class="main">
@@ -193,7 +256,8 @@ function renderNav(className) {
     ["dashboard", "layout-dashboard", "Dashboard"],
     ["products", "boxes", "Products"],
     ["customers", "users", "Customers"],
-    ["sales", "receipt-text", "Sales"]
+    ["sales", "receipt-text", "Sales"],
+    ["subscription", "badge-indian-rupee", "Plan"]
   ];
   return `<nav class="${className}">${items.map(([view, iconName, label]) => `
     <button class="${state.view === view ? "active" : ""}" data-view="${view}" title="${label}">
@@ -211,13 +275,17 @@ function renderTopbar() {
     dashboard: ["Store Dashboard", "Today’s sales, revenue, and stock health."],
     products: ["Inventory", "Manage catalog, pricing, stock, and product images."],
     customers: ["Customers", "Track customer details and purchase totals."],
-    sales: ["Sales History", "Review invoices and reprint receipts."]
+    sales: ["Sales History", "Review invoices and reprint receipts."],
+    subscription: ["Subscription", "Manage the one-year POS subscription for this store."]
   };
   const [title, sub] = titles[state.view];
   return `
     <header class="topbar">
       <div><h2>${title}</h2><p>${sub}</p></div>
-      <div class="status-pill">${icon(state.user ? "cloud" : "hard-drive", 16)} ${state.user ? "Firebase cloud sync" : "Local demo storage"}</div>
+      <div class="toolbar">
+        <div class="status-pill ${isSubscriptionActive() ? "ok" : "danger"}">${icon(isSubscriptionActive() ? "badge-check" : "badge-x", 16)} ${isSubscriptionActive() ? `${subscriptionDaysLeft()} days left` : "Plan expired"}</div>
+        <div class="status-pill">${icon(state.user ? "cloud" : "hard-drive", 16)} ${state.user ? "Firebase cloud sync" : "Local account"}</div>
+      </div>
     </header>
   `;
 }
@@ -227,7 +295,8 @@ const views = {
   pos: renderPOS,
   products: renderProducts,
   customers: renderCustomers,
-  sales: renderSales
+  sales: renderSales,
+  subscription: renderSubscription
 };
 
 function renderDashboard() {
@@ -257,7 +326,9 @@ function renderPOS() {
   const filtered = state.data.products.filter((product) =>
     [product.name, product.sku, product.category].join(" ").toLowerCase().includes(state.search.toLowerCase())
   );
+  const locked = !isSubscriptionActive();
   return `
+    ${locked ? renderSubscriptionBanner() : ""}
     <section class="grid pos-grid">
       <div class="panel">
         <div class="panel-header">
@@ -278,8 +349,17 @@ function renderPOS() {
           <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0"></div>
         </div>
         ${renderSummary()}
-        <button class="button" id="checkout" style="width:100%;margin-top:14px">${icon("receipt-text")} Complete billing</button>
+        <button class="button" id="checkout" style="width:100%;margin-top:14px" ${locked ? "disabled" : ""}>${icon("receipt-text")} Complete billing</button>
       </aside>
+    </section>
+  `;
+}
+
+function renderSubscriptionBanner() {
+  return `
+    <section class="subscription-alert">
+      <div>${icon("lock-keyhole")}<strong>Annual subscription expired</strong><span>Renew the 1 year POS plan to continue billing.</span></div>
+      <button class="button" data-view="subscription">${icon("badge-indian-rupee")} Renew</button>
     </section>
   `;
 }
@@ -391,6 +471,49 @@ function renderSales() {
   `;
 }
 
+function renderSubscription() {
+  const subscription = getSubscription();
+  const active = isSubscriptionActive();
+  const startedAt = subscription.startedAt ? new Date(subscription.startedAt).toLocaleDateString() : "-";
+  const expiresAt = subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString() : "-";
+  return `
+    <section class="subscription-hero">
+      <div>
+        <span class="eyebrow">CounterCloud Annual</span>
+        <h3>1 year POS subscription</h3>
+        <p>Keep billing, inventory, sales history, customers, Firebase sync, and product image storage available for one store account.</p>
+      </div>
+      <div class="plan-price">
+        <strong>${money(subscription.amount || 4999)}</strong>
+        <span>per year</span>
+      </div>
+    </section>
+    <section class="grid subscription-grid">
+      <div class="panel">
+        <div class="panel-header"><h3>Plan status</h3><span class="badge ${active ? "ok" : "danger"}">${active ? "Active" : "Expired"}</span></div>
+        <div class="plan-facts">
+          <div><span>Account</span><strong>${currentEmail()}</strong></div>
+          <div><span>Started</span><strong>${startedAt}</strong></div>
+          <div><span>Expires</span><strong>${expiresAt}</strong></div>
+          <div><span>Days left</span><strong>${subscriptionDaysLeft()}</strong></div>
+          <div><span>Payment ref</span><strong>${subscription.paymentRef || "-"}</strong></div>
+        </div>
+      </div>
+      <div class="panel plan-card">
+        <div class="panel-header"><h3>Annual license</h3>${icon("shield-check", 28)}</div>
+        <ul class="feature-list">
+          <li>${icon("check", 16)} Unlimited billing from mobile and PC</li>
+          <li>${icon("check", 16)} Firebase cloud data and image storage</li>
+          <li>${icon("check", 16)} Inventory, customers, and sales reports</li>
+          <li>${icon("check", 16)} Receipt printing and invoice history</li>
+        </ul>
+        <button class="button" id="renew-subscription">${icon("badge-indian-rupee")} ${active ? "Extend 1 more year" : "Activate annual plan"}</button>
+        <p class="fine-print">This app stores the subscription record in Firebase/local data. Connect this button to Razorpay, Stripe, or your preferred payment provider before accepting real payments.</p>
+      </div>
+    </section>
+  `;
+}
+
 function renderSaleList(sales) {
   if (!sales.length) return `<div class="empty">No invoices yet</div>`;
   return `<div class="sale-list">${sales.map((sale) => `
@@ -492,6 +615,7 @@ function bindEvents() {
   document.querySelector("#discount")?.addEventListener("input", updateSummaryOnly);
   document.querySelector("#paid")?.addEventListener("input", updateSummaryOnly);
   document.querySelector("#checkout")?.addEventListener("click", checkout);
+  document.querySelector("#renew-subscription")?.addEventListener("click", renewSubscription);
   document.querySelector("#new-product")?.addEventListener("click", () => { state.modal = { type: "product", product: {} }; render(); });
   document.querySelectorAll("[data-edit-product]").forEach((button) => button.addEventListener("click", () => {
     state.modal = { type: "product", product: state.data.products.find((product) => product.id === button.dataset.editProduct) };
@@ -510,16 +634,14 @@ function bindEvents() {
   document.querySelector("#signin")?.addEventListener("click", () => authAction("signin"));
   document.querySelector("#signup")?.addEventListener("click", () => authAction("signup"));
   document.querySelector("#demo-mode")?.addEventListener("click", () => {
-    state.cloudReady = false;
+    state.localSession = { email: "demo@countercloud.local", demo: true };
+    localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
     render();
   });
   document.querySelector("#signout")?.addEventListener("click", async () => {
     if (state.user) await state.auth.signOut();
-    else if (confirm("Reset demo data?")) {
-      state.data = structuredClone(seed);
-      state.cart = [];
-      writeLocal();
-    }
+    state.localSession = null;
+    localStorage.removeItem("countercloud-session");
     render();
   });
 }
@@ -547,6 +669,11 @@ function changeQty(id, amount) {
 }
 
 async function checkout() {
+  if (!isSubscriptionActive()) {
+    state.view = "subscription";
+    render();
+    return;
+  }
   if (!state.cart.length) return alert("Add products before billing.");
   const customer = state.data.customers.find((item) => item.id === document.querySelector("#customer").value) || state.data.customers[0];
   const current = totals();
@@ -642,13 +769,54 @@ async function authAction(action) {
   const email = document.querySelector("#email").value.trim();
   const password = document.querySelector("#password").value;
   if (!email || password.length < 6) return alert("Enter an email and a password of at least 6 characters.");
+  if (!state.cloudReady) {
+    localAuthAction(action, email, password);
+    return;
+  }
   const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = state.firebase.authMod;
   try {
     if (action === "signin") await signInWithEmailAndPassword(state.auth, email, password);
-    else await createUserWithEmailAndPassword(state.auth, email, password);
+    else {
+      await createUserWithEmailAndPassword(state.auth, email, password);
+      await renewSubscription();
+    }
   } catch (error) {
     alert(error.message);
   }
+}
+
+function localAuthAction(action, email, password) {
+  const users = JSON.parse(localStorage.getItem("countercloud-users") || "{}");
+  if (action === "signup") {
+    users[email] = { password, createdAt: new Date().toISOString() };
+    localStorage.setItem("countercloud-users", JSON.stringify(users));
+    state.data.subscription = annualSubscription();
+    writeLocal();
+  } else if (!users[email] || users[email].password !== password) {
+    return alert("Account not found. Create an account first, or check the password.");
+  }
+  state.localSession = { email };
+  localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
+  render();
+}
+
+function annualSubscription(fromDate = new Date()) {
+  return {
+    plan: "Annual POS",
+    status: "active",
+    amount: 4999,
+    startedAt: fromDate.toISOString(),
+    expiresAt: addYears(fromDate, 1).toISOString(),
+    paymentRef: `ANNUAL-${Date.now()}`
+  };
+}
+
+async function renewSubscription() {
+  const current = getSubscription();
+  const renewalStart = new Date(current.expiresAt) > new Date() ? new Date(current.expiresAt) : new Date();
+  state.data.subscription = annualSubscription(renewalStart);
+  await persist();
+  render();
 }
 
 initFirebase().finally(render);
