@@ -67,29 +67,37 @@ button {
   overflow: hidden;
 }
 
-.sidebar-toggle {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  color: white;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.sidebar-expanded .sidebar-toggle {
-  margin-left: auto;
-}
-
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
   min-width: 0;
+}
+
+.brand-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 3px 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+}
+
+.brand-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-expanded .brand-toggle {
+  justify-content: flex-start;
+  padding-inline: 4px;
 }
 
 .brand-mark {
   width: 42px;
+  min-width: 42px;
   height: 42px;
   border-radius: 8px;
   background: linear-gradient(135deg, #ffffff, #d8f2e7);
@@ -106,6 +114,7 @@ button {
 
 .brand-text {
   min-width: 0;
+  text-align: left;
   transition: opacity 160ms ease, transform 160ms ease;
 }
 

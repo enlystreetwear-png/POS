@@ -1,4 +1,4 @@
-# CounterCloud POS
+# PondyPOS
 
 A responsive SaaS-style POS app for mobile and desktop. It includes billing, printable receipts, product inventory, customers, sales history, dashboard metrics, demo storage, and Firebase-ready cloud persistence.
 

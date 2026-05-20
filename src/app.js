@@ -13,7 +13,7 @@ const demoProducts = [
 
 const seed = {
   settings: {
-    shopName: "CounterCloud Restaurant",
+    shopName: "PondyPOS Restaurant",
     gstin: "",
     phone: "",
     address: "Your restaurant address",
@@ -48,7 +48,7 @@ const seed = {
 
 const state = {
   view: "pos",
-  sidebarExpanded: localStorage.getItem("countercloud-sidebar-expanded") === "true",
+  sidebarExpanded: readStorage("pondypos-sidebar-expanded", "countercloud-sidebar-expanded") === "true",
   firebaseConfigured: hasFirebaseConfig(),
   authReady: !hasFirebaseConfig(),
   authBusy: false,
@@ -70,7 +70,8 @@ const state = {
 const app = document.querySelector("#app");
 
 function readLocal() {
-  const saved = localStorage.getItem("countercloud-pos");
+  migrateStorageKey("countercloud-pos", "pondypos-data");
+  const saved = localStorage.getItem("pondypos-data");
   if (!saved) return normalizeData(structuredClone(seed));
   try {
     return normalizeData({ ...structuredClone(seed), ...JSON.parse(saved) });
@@ -80,13 +81,13 @@ function readLocal() {
 }
 
 function writeLocal() {
-  localStorage.setItem("countercloud-pos", JSON.stringify(state.data));
+  localStorage.setItem("pondypos-data", JSON.stringify(state.data));
 }
 
 function normalizeData(data) {
   const freshSeed = structuredClone(seed);
   const settings = { ...freshSeed.settings, ...(data.settings || {}) };
-  if (settings.shopName === "CounterCloud Store") settings.shopName = freshSeed.settings.shopName;
+  if (settings.shopName === "CounterCloud Store" || settings.shopName === "CounterCloud Restaurant") settings.shopName = freshSeed.settings.shopName;
   if (settings.address === "Your store address") settings.address = freshSeed.settings.address;
   return {
     ...freshSeed,
@@ -114,10 +115,22 @@ function addYears(date, years) {
 }
 
 function readLocalSession() {
+  migrateStorageKey("countercloud-session", "pondypos-session");
   try {
-    return JSON.parse(localStorage.getItem("countercloud-session")) || null;
+    return JSON.parse(localStorage.getItem("pondypos-session")) || null;
   } catch {
     return null;
+  }
+}
+
+function readStorage(primaryKey, legacyKey) {
+  migrateStorageKey(legacyKey, primaryKey);
+  return localStorage.getItem(primaryKey);
+}
+
+function migrateStorageKey(legacyKey, primaryKey) {
+  if (!localStorage.getItem(primaryKey) && localStorage.getItem(legacyKey)) {
+    localStorage.setItem(primaryKey, localStorage.getItem(legacyKey));
   }
 }
 
@@ -273,7 +286,7 @@ function renderAuth() {
       <section class="auth-hero">
         <div class="brand" style="margin-bottom:42px">
           <div class="brand-mark">${icon("scan-barcode")}</div>
-          <div><h1 style="font-size:20px">CounterCloud</h1><span>Restaurant SaaS POS</span></div>
+          <div><h1 style="font-size:20px">PondyPOS</h1><span>Restaurant SaaS POS</span></div>
         </div>
         <h1>Restaurant POS</h1>
         <p>Run table billing, menu items, guests, kitchen-friendly orders, and annual subscriptions from phone or desktop.</p>
@@ -302,9 +315,6 @@ function renderShell() {
   return `
     <div class="app-shell ${state.sidebarExpanded ? "sidebar-expanded" : "sidebar-collapsed"}">
       <aside class="sidebar">
-        <button class="sidebar-toggle" id="sidebar-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
-          ${icon(state.sidebarExpanded ? "panel-left-close" : "panel-left-open")}
-        </button>
         ${renderBrand()}
         ${renderNav("nav")}
         <div class="sidebar-footer">
@@ -326,8 +336,10 @@ function renderShell() {
 function renderBrand() {
   return `
     <div class="brand">
-      <div class="brand-mark">${icon("scan-barcode")}</div>
-      <div class="brand-text"><h1>CounterCloud</h1><span>Restaurant POS</span></div>
+      <button class="brand-toggle" id="brand-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
+        <span class="brand-mark">${icon("scan-barcode")}</span>
+        <span class="brand-text"><h1>PondyPOS</h1><span>Restaurant POS</span></span>
+      </button>
     </div>
   `;
 }
@@ -605,7 +617,7 @@ function renderSubscription() {
   return `
     <section class="subscription-hero">
       <div>
-        <span class="eyebrow">CounterCloud Annual</span>
+        <span class="eyebrow">PondyPOS Annual</span>
         <h3>1 year POS subscription</h3>
         <p>Keep billing, inventory, sales history, customers, Firebase sync, and product image storage available for one store account.</p>
       </div>
@@ -725,9 +737,9 @@ function receiptMarkup(sale) {
 }
 
 function bindEvents() {
-  document.querySelector("#sidebar-toggle")?.addEventListener("click", () => {
+  document.querySelector("#brand-toggle")?.addEventListener("click", () => {
     state.sidebarExpanded = !state.sidebarExpanded;
-    localStorage.setItem("countercloud-sidebar-expanded", String(state.sidebarExpanded));
+    localStorage.setItem("pondypos-sidebar-expanded", String(state.sidebarExpanded));
     render();
   });
   document.querySelectorAll("[data-view]").forEach((button) => {
@@ -780,14 +792,14 @@ function bindEvents() {
   document.querySelector("#signup")?.addEventListener("click", () => authAction("signup"));
   document.querySelector("#google-signin")?.addEventListener("click", googleSignIn);
   document.querySelector("#demo-mode")?.addEventListener("click", () => {
-    state.localSession = { email: "demo@countercloud.local", demo: true };
-    localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
+    state.localSession = { email: "demo@pondypos.local", demo: true };
+    localStorage.setItem("pondypos-session", JSON.stringify(state.localSession));
     render();
   });
   document.querySelector("#signout")?.addEventListener("click", async () => {
     if (state.user) await state.auth.signOut();
     state.localSession = null;
-    localStorage.removeItem("countercloud-session");
+    localStorage.removeItem("pondypos-session");
     render();
   });
 }
@@ -1006,10 +1018,11 @@ async function finishSignedInUser(user) {
 }
 
 function localAuthAction(action, email, password) {
-  const users = JSON.parse(localStorage.getItem("countercloud-users") || "{}");
+  migrateStorageKey("countercloud-users", "pondypos-users");
+  const users = JSON.parse(localStorage.getItem("pondypos-users") || "{}");
   if (action === "signup") {
     users[email] = { password, createdAt: new Date().toISOString() };
-    localStorage.setItem("countercloud-users", JSON.stringify(users));
+    localStorage.setItem("pondypos-users", JSON.stringify(users));
     state.data.subscription = annualSubscription();
     writeLocal();
   } else if (!users[email] || users[email].password !== password) {
@@ -1018,7 +1031,7 @@ function localAuthAction(action, email, password) {
     return;
   }
   state.localSession = { email };
-  localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
+  localStorage.setItem("pondypos-session", JSON.stringify(state.localSession));
   state.authBusy = false;
   render();
 }
