@@ -213,6 +213,7 @@ function renderAuth() {
         <div class="field"><label>Password</label><input class="input" id="password" type="password" placeholder="Minimum 6 characters"></div>
         <button class="button" id="signin">${icon("log-in")} Sign in</button>
         <button class="button secondary" id="signup">${icon("user-plus")} Create account</button>
+        <button class="button google" id="google-signin">${icon("chrome")} Continue with Google</button>
         <button class="ghost-button button secondary" id="demo-mode">${icon("monitor-smartphone")} Try POS demo</button>
       </section>
     </main>
@@ -633,6 +634,7 @@ function bindEvents() {
   document.querySelector("#print-receipt")?.addEventListener("click", () => window.print());
   document.querySelector("#signin")?.addEventListener("click", () => authAction("signin"));
   document.querySelector("#signup")?.addEventListener("click", () => authAction("signup"));
+  document.querySelector("#google-signin")?.addEventListener("click", googleSignIn);
   document.querySelector("#demo-mode")?.addEventListener("click", () => {
     state.localSession = { email: "demo@countercloud.local", demo: true };
     localStorage.setItem("countercloud-session", JSON.stringify(state.localSession));
@@ -780,6 +782,20 @@ async function authAction(action) {
       await createUserWithEmailAndPassword(state.auth, email, password);
       await renewSubscription();
     }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function googleSignIn() {
+  if (!state.cloudReady) {
+    alert("Add Firebase config first, then enable Google sign-in in Firebase Authentication.");
+    return;
+  }
+  const { GoogleAuthProvider, signInWithPopup } = state.firebase.authMod;
+  try {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(state.auth, provider);
   } catch (error) {
     alert(error.message);
   }

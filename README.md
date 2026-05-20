@@ -28,10 +28,11 @@ Open `http://localhost:4173`.
 ## Firebase Setup
 
 1. Create a Firebase project on the free Spark plan.
-2. Enable Authentication with Email/Password.
-3. Create a Firestore database.
-4. Enable Firebase Storage.
-5. Copy your Firebase web app config into `public/firebase-config.js`.
+2. Open Project settings, create a Web app, and copy the Firebase config into `public/firebase-config.js`.
+3. Enable Authentication with Email/Password.
+4. Enable Authentication with Google.
+5. Create a Firestore database.
+6. Enable Firebase Storage.
 
 The app runs in local demo mode until `apiKey` and `projectId` are filled.
 
