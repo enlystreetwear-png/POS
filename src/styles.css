@@ -1203,16 +1203,6 @@ textarea:focus {
   box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
 }
 
-.ops-card svg,
-.setting-card > svg:first-child {
-  min-width: 42px;
-  width: 42px;
-  height: 42px;
-  padding: 10px;
-  border-radius: 999px;
-  background: #f4f5f7;
-}
-
 .ops-card span,
 .setting-card span {
   display: grid;
@@ -1223,22 +1213,6 @@ textarea:focus {
 .setting-card small {
   color: var(--muted);
   line-height: 1.35;
-}
-
-.ops-card em,
-.setting-card em {
-  width: fit-content;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #f4f5f7;
-  color: var(--brand);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 800;
-}
-
-.setting-card > svg:last-child {
-  margin-left: auto;
 }
 
 .action-metrics {

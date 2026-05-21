@@ -885,8 +885,7 @@ function renderOperations() {
       <div class="panel-header"><h3>${title}</h3></div>
       <div class="ops-grid">${items.map(([label, iconName, text]) => `
         <button class="ops-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">
-          ${icon(iconName, 22)}
-          <span><strong>${label}</strong><small>${text}</small>${moduleStatus(label)}</span>
+          <span><strong>${label}</strong><small>${text}</small></span>
         </button>
       `).join("")}</div>
     </section>
@@ -1047,7 +1046,7 @@ function renderOutletSettings() {
       <section class="panel settings-panel">
         <div class="panel-header"><h3>${title}</h3></div>
         <div class="settings-grid">${items.map(([label, iconName, text]) => `
-          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">${icon(iconName, 22)}<span><strong>${label}</strong><small>${text}</small>${moduleStatus(label)}</span>${icon("arrow-right", 18)}</button>
+          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}"><span><strong>${label}</strong><small>${text}</small></span></button>
         `).join("")}</div>
       </section>
     `).join("")}
@@ -1097,11 +1096,6 @@ function renderModal() {
 
 function actionKey(label = "") {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function moduleStatus(label) {
-  const saved = state.data.modules?.[actionKey(label)]?.updatedAt;
-  return saved ? `<em>Configured ${new Date(saved).toLocaleDateString()}</em>` : "";
 }
 
 function renderProductModal(product = {}) {
