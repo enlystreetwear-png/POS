@@ -667,7 +667,8 @@ function renderSubscriptionBanner() {
 }
 
 function renderProductCard(product) {
-  const art = product.imageUrl ? `<img src="${product.imageUrl}" alt="${product.name}">` : product.name.slice(0, 2).toUpperCase();
+  const imageSrc = productImageSrc(product);
+  const art = imageSrc ? `<img src="${imageSrc}" alt="${escapeAttr(product.name)}">` : product.name.slice(0, 2).toUpperCase();
   return `
     <button class="product-card" data-add="${product.id}">
       <div class="product-art">${art}</div>
@@ -678,6 +679,13 @@ function renderProductCard(product) {
       </div>
     </button>
   `;
+}
+
+function productImageSrc(product = {}) {
+  if (!product.imageUrl) return "";
+  if (product.imageUrl.startsWith("data:")) return product.imageUrl;
+  const separator = product.imageUrl.includes("?") ? "&" : "?";
+  return `${product.imageUrl}${separator}v=${encodeURIComponent(product.imageUpdatedAt || product.id || assetVersion)}`;
 }
 
 function renderCartRow(item) {
@@ -715,10 +723,11 @@ function renderProducts() {
         <button class="button" id="new-product">${icon("plus")} Menu item</button>
       </div>
       <table class="table">
-        <thead><tr><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+        <thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr></thead>
         <tbody>
           ${state.data.products.map((product) => `
             <tr>
+              <td>${productThumb(product)}</td>
               <td><strong>${product.name}</strong></td>
               <td>${product.sku || "-"}</td>
               <td>${product.category || "General"}</td>
@@ -1059,6 +1068,13 @@ function renderSaleList(sales) {
   `).join("")}</div>`;
 }
 
+function productThumb(product = {}) {
+  const imageSrc = productImageSrc(product);
+  return imageSrc
+    ? `<img class="product-thumb" src="${imageSrc}" alt="${escapeAttr(product.name)}">`
+    : `<span class="product-thumb placeholder">${product.name?.slice(0, 2).toUpperCase() || "PP"}</span>`;
+}
+
 function renderModal() {
   if (state.modal.type === "product") return renderProductModal(state.modal.product);
   if (state.modal.type === "customer") return renderCustomerModal();
@@ -1077,11 +1093,16 @@ function moduleStatus(label) {
 }
 
 function renderProductModal(product = {}) {
+  const imageSrc = productImageSrc(product);
   return `
     <div class="modal-backdrop">
       <section class="modal">
         <div class="panel-header"><h3>${product.id ? "Edit menu item" : "New menu item"}</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
         <div class="form-grid">
+          <div class="field product-image-field" style="grid-column:1/-1">
+            <label>Current image</label>
+            ${imageSrc ? `<img class="product-image-preview" src="${imageSrc}" alt="${escapeAttr(product.name || "Menu item")}">` : `<div class="product-image-preview empty-preview">No image added</div>`}
+          </div>
           ${productInput("name", "Name", product.name)}
           ${productInput("sku", "SKU", product.sku)}
           ${productInput("category", "Category", product.category)}
@@ -1154,12 +1175,17 @@ function actionDetails(action, label) {
     ${moduleIntro(title, text, steps)}
     ${configForm(fields)}
   `;
+  const moduleActions = (buttons) => `
+    <div class="toolbar module-actions">
+      ${buttons.map((button) => `<button class="button ${button.secondary ? "secondary" : ""}" data-view="${button.view}">${icon(button.icon || "arrow-right", 16)} ${button.label}</button>`).join("")}
+    </div>
+  `;
   const simple = (title, body) => ({ title, body });
   const actionMap = {
     "online-orders": simple("Online Orders", `${metricStrip([["Today orders", totals.sales.length], ["Open online orders", 0], ["Ready to accept", "Yes"]])}${moduleIntro("Channel readiness", "Keep third-party and direct ordering rules documented here until live API integrations are connected.", ["Assign one staff owner for incoming orders.", "Confirm payment mode before accepting.", "Use Dispatch status for delivery handoff."])}${configForm([{ key: "onlineAutoAccept", label: "Auto accept online orders", type: "checkbox", value: false }, { key: "onlinePrepMinutes", label: "Default prep minutes", type: "number", value: 25 }, { key: "onlineChannelNote", label: "Channel note", value: "Website, WhatsApp, Swiggy, Zomato" }])}`),
     "kots": simple("Kitchen Order Tickets", `${moduleIntro("Kitchen flow", "Use this module to control how orders reach the kitchen and how your team tracks preparation.", ["Auto print KOT for dine-in bills.", "Use counter name to separate kitchen and juice sections.", "Review running KOT cards before closing shift."])}${renderKotCards(openTables)}${configForm([{ key: "autoPrintKot", label: "Auto print KOT", type: "checkbox", value: true }, { key: "kotCounter", label: "KOT counter name", value: "Kitchen" }, { key: "kotFooter", label: "KOT footer note", value: "Prepare fresh and confirm table number" }])}`),
-    "due-payment": simple("Due Payments", `${moduleIntro("Credit control", "Use this view to review bills that are paid later or partially paid.", ["Collect customer phone for every credit bill.", "Settle dues before monthly closing.", "Use order number when calling customers."])}${reportTable(["Invoice", "Customer", "Amount", "Status"], duePaymentRows())}`),
-    "live-view": simple("Live View", `${metricStrip([["Running tables", openTables.length], ["Open items", openTables.reduce((sum, table) => sum + (state.data.openBills[table.id] || []).length, 0)], ["Today revenue", money(totals.total)]])}${moduleIntro("Floor visibility", "This shows the running table queue for captains, cashiers, and managers.", ["Watch open tables before rush hour.", "Use it before shift close to avoid missed bills.", "Pair with KOT settings for kitchen visibility."])}${renderOpenTableList(openTables)}`),
+    "due-payment": simple("Due Payments", `${moduleIntro("Credit control", "Use this view to review bills that are paid later or partially paid.", ["Collect customer phone for every credit bill.", "Settle dues before monthly closing.", "Use order number when calling customers."])}${reportTable(["Invoice", "Customer", "Amount", "Status"], duePaymentRows())}${moduleActions([{ label: "Open sales history", view: "sales", icon: "receipt-text" }, { label: "Open reports", view: "reports", icon: "chart-line", secondary: true }])}`),
+    "live-view": simple("Live View", `${metricStrip([["Running tables", openTables.length], ["Open items", openTables.reduce((sum, table) => sum + (state.data.openBills[table.id] || []).length, 0)], ["Today revenue", money(totals.total)]])}${moduleIntro("Floor visibility", "This shows the running table queue for captains, cashiers, and managers.", ["Watch open tables before rush hour.", "Use it before shift close to avoid missed bills.", "Pair with KOT settings for kitchen visibility."])}${renderOpenTableList(openTables)}${moduleActions([{ label: "Open table billing", view: "pos", icon: "utensils" }])}`),
     "bill-kot-print": simple("Bill / KOT Print", configPanel("Printing workflow", "Keep bill and kitchen print rules consistent across counters.", [{ key: "billCopies", label: "Bill copies", type: "number", value: 1 }, { key: "kotCopies", label: "KOT copies", type: "number", value: 1 }, { key: "printerName", label: "Printer name", value: "Default printer" }, { key: "printLogo", label: "Print PondyPOS logo", type: "checkbox", value: true }], ["Bill prints after payment.", "KOT prints when food is sent to kitchen.", "Use 80mm paper for counter receipts."])),
     "custom-order-status": simple("Custom Order Status", configPanel("Order stages", "Name the statuses your team uses from cooking to handover.", [{ key: "statusOne", label: "Status 1", value: "Food ready" }, { key: "statusTwo", label: "Status 2", value: "Dispatch" }, { key: "statusThree", label: "Status 3", value: "Delivered" }, { key: "statusAlert", label: "Alert staff on status change", type: "checkbox", value: true }], ["Use short labels for display screens.", "Keep dine-in and delivery statuses separate.", "Review failed or delayed orders daily."])),
     "cash-flow": simple("Cash Flow", `${moduleIntro("Drawer control", "Track opening cash, sales, and expected drawer value for daily handover.", ["Set opening cash before first bill.", "Compare expected drawer at shift close.", "Use Close Shift to save final count."])}${reportTable(["Type", "Amount"], [["Cash sales", money(totals.total)], ["Opening cash", money(Number(settings.openingCash || 0))], ["Expected drawer", money(totals.total + Number(settings.openingCash || 0))]])}${configForm([{ key: "openingCash", label: "Opening cash", type: "number", value: 0 }])}`),
@@ -1176,7 +1202,7 @@ function actionDetails(action, label) {
     "dual-screen": simple("Dual Screen", configPanel("Customer display", "Set the customer-facing billing display used at the counter.", [{ key: "customerDisplay", label: "Customer display enabled", type: "checkbox", value: false }, { key: "displayMessage", label: "Display message", value: "Thank you" }, { key: "showRunningTotal", label: "Show running total", type: "checkbox", value: true }], ["Show items as they are added.", "Hide manager-only controls.", "Use the PondyPOS logo screen when idle."])),
     "billing-user-profile": simple("Billing User Profile", configPanel("Staff profile", "Configure the active counter user for receipts and reports.", [{ key: "cashierName", label: "Cashier name", value: "cashier" }, { key: "role", label: "Role", value: "Owner" }, { key: "pinRequired", label: "Require PIN for manager actions", type: "checkbox", value: true }], ["Use separate Firebase login for each owner/store.", "Keep cashier names consistent.", "Protect reset and shift close actions."])),
     "alerts": simple("Alerts", configPanel("Alert rules", "Set operational alerts that protect billing and stock health.", [{ key: "lowStockAlert", label: "Low stock alert qty", type: "number", value: 5 }, { key: "dailySummary", label: "Daily summary alert", type: "checkbox", value: true }, { key: "openBillAlertMinutes", label: "Open bill alert minutes", type: "number", value: 45 }], ["Review low stock before dinner service.", "Check long-running bills.", "Use daily summary before closing."])),
-    "help": simple("Help", `${moduleIntro("Production checklist", "Use this as the owner checklist before charging customers or deploying updates.", ["Phone OTP and Google login tested.", "Each user has separate Firebase data.", "Billing, reports, backup, and shift close verified."])}${reportTable(["Topic", "What to check"], [["Login", "Firebase Phone and Google providers enabled"], ["Billing", "Select table, add item, complete billing"], ["Sync", "Firestore rules allow only tenants/{uid}"], ["Backup", "Export JSON before big menu edits"], ["Deploy", "Push GitHub and redeploy Vercel"], ["Support", "Keep WhatsApp or phone support visible to staff"]])}`),
+    "help": simple("Help", `${moduleIntro("Production checklist", "Use this as the owner checklist before charging customers or deploying updates.", ["Phone OTP and Google login tested.", "Each user has separate Firebase data.", "Billing, reports, backup, and shift close verified."])}${reportTable(["Topic", "What to check"], [["Login", "Firebase Phone and Google providers enabled"], ["Billing", "Select table, add item, complete billing"], ["Sync", "Firestore rules allow only tenants/{uid}"], ["Backup", "Export JSON before big menu edits"], ["Deploy", "Push GitHub and redeploy Vercel"], ["Support", "Keep WhatsApp or phone support visible to staff"]])}${moduleActions([{ label: "Open settings", view: "settings", icon: "settings" }, { label: "Open subscription", view: "subscription", icon: "badge-indian-rupee", secondary: true }])}`),
     "display": simple("Display Settings", configPanel("Billing display", "Choose the information cashiers see while billing on PC and mobile.", [{ key: "compactTables", label: "Compact table view", type: "checkbox", value: false }, { key: "showStockOnCards", label: "Show stock on menu cards", type: "checkbox", value: true }, { key: "showDashboardHealth", label: "Show dashboard health", type: "checkbox", value: true }], ["Keep table-first billing as the default.", "Show stock during busy hours.", "Use compact mode on smaller monitors."])),
     "calculations": simple("Calculation Settings", configPanel("Billing calculation", "Control service charge and rounding behavior used at checkout.", [{ key: "serviceCharge", label: "Service charge %", type: "number", value: 0 }, { key: "roundOff", label: "Round off bills", type: "checkbox", value: true }, { key: "roundOffMode", label: "Round off mode", value: "Nearest rupee" }], ["Print a sample bill after changes.", "Keep service charge visible to staff.", "Review totals in Sales report."])),
     "linked-services": simple("Linked Services", configPanel("Service links", "Store service connection details for WhatsApp, delivery, and online orders.", [{ key: "whatsappNumber", label: "WhatsApp number", value: "" }, { key: "deliveryPartner", label: "Delivery partner", value: "" }, { key: "onlineOrderUrl", label: "Online order URL", value: "" }], ["Use one official WhatsApp number.", "Keep partner name current.", "Test links before printing QR codes."])),
@@ -1189,7 +1215,7 @@ function actionDetails(action, label) {
     "close-shift": simple("Close Shift", renderCloseShiftPanel()),
     "backup-restore": simple("Backup & Restore", renderBackupPanel())
   };
-  return actionMap[action] || simple(label, `<p class="muted">${label} is connected to this workspace.</p>`);
+  return actionMap[action] || simple(label, configPanel(label, "This module is connected and ready to configure for your restaurant workflow.", [{ key: "enabled", label: "Enabled", type: "checkbox", value: true }, { key: "note", label: "Operating note", value: "" }], ["Save this module to mark it configured.", "Use notes for staff instructions.", "Review settings after deployment."]));
 }
 
 function renderCloseShiftPanel() {
@@ -1399,6 +1425,7 @@ async function handleAction(action, label) {
     "due-payment": "order"
   };
   if (viewActions[action]) {
+    setToast(`Opened ${label}`);
     setView(viewActions[action]);
     return;
   }
@@ -1608,15 +1635,6 @@ async function saveProduct() {
   const id = document.querySelector("#save-product").dataset.id || crypto.randomUUID();
   const previous = state.data.products.find((product) => product.id === id) || {};
   const file = document.querySelector("#product-image").files[0];
-  let imageUrl = previous.imageUrl || "";
-  if (file && state.user && state.storage) {
-    const { ref, uploadBytes, getDownloadURL } = state.firebase.storageMod;
-    const imageRef = ref(state.storage, `tenants/${state.tenantId}/products/${id}-${file.name}`);
-    await uploadBytes(imageRef, file);
-    imageUrl = await getDownloadURL(imageRef);
-  } else if (file) {
-    imageUrl = await fileToDataUrl(file);
-  }
   const product = {
     id,
     name: document.querySelector("#product-name").value.trim() || "Untitled product",
@@ -1625,7 +1643,8 @@ async function saveProduct() {
     price: Number(document.querySelector("#product-price").value || 0),
     cost: Number(document.querySelector("#product-cost").value || 0),
     stock: Number(document.querySelector("#product-stock").value || 0),
-    imageUrl
+    imageUrl: previous.imageUrl || "",
+    imageUpdatedAt: previous.imageUpdatedAt || ""
   };
   if (product.price <= 0) {
     setToast("Enter a valid menu price", "error");
@@ -1635,12 +1654,31 @@ async function saveProduct() {
     setToast("Stock cannot be negative", "error");
     return;
   }
+  if (file) {
+    try {
+      product.imageUrl = await saveProductImage(id, file);
+    } catch (error) {
+      console.warn("Product image upload failed, using local image", error);
+      product.imageUrl = await fileToDataUrl(file);
+      setToast("Image saved locally. Firebase Storage upload failed.", "error");
+    }
+    product.imageUpdatedAt = new Date().toISOString();
+  }
   const exists = state.data.products.some((item) => item.id === id);
   state.data.products = exists ? state.data.products.map((item) => item.id === id ? product : item) : [product, ...state.data.products];
   state.modal = null;
   await persist();
-  setToast("Menu item saved");
+  if (!file || state.toast?.type !== "error") setToast(file ? "Menu item and image saved" : "Menu item saved");
   render();
+}
+
+async function saveProductImage(id, file) {
+  if (!state.user || !state.storage) return fileToDataUrl(file);
+  const { ref, uploadBytes, getDownloadURL } = state.firebase.storageMod;
+  const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
+  const imageRef = ref(state.storage, `tenants/${state.tenantId}/products/${id}-${Date.now()}-${safeName}`);
+  await uploadBytes(imageRef, file);
+  return getDownloadURL(imageRef);
 }
 
 function fileToDataUrl(file) {

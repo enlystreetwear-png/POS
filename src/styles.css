@@ -647,6 +647,35 @@ textarea:focus {
   object-fit: cover;
 }
 
+.product-thumb {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f4f5f7;
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.product-thumb.placeholder {
+  border: 1px solid var(--line);
+}
+
+.product-image-preview {
+  width: min(220px, 100%);
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f4f5f7;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .product-body {
   padding: 12px;
 }
@@ -1258,6 +1287,11 @@ textarea:focus {
   color: var(--brand);
   flex: 0 0 auto;
   margin-top: 1px;
+}
+
+.module-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
 .check-row {
