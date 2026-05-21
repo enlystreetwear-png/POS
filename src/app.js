@@ -39,6 +39,7 @@ const seed = {
     { id: "T8", name: "Takeaway", seats: 0 }
   ],
   openBills: {},
+  kots: [],
   subscription: {
     plan: "Annual POS",
     status: "active",
@@ -121,6 +122,7 @@ function normalizeData(data) {
     subscription: { ...freshSeed.subscription, ...(data.subscription || {}) },
     tables: data.tables?.length ? data.tables : freshSeed.tables,
     openBills: data.openBills || {},
+    kots: data.kots || [],
     products: shouldUseRestaurantSeed(data.products) ? freshSeed.products : data.products,
     customers: data.customers?.length ? data.customers : freshSeed.customers,
     sales: data.sales || [],
@@ -626,7 +628,10 @@ function renderPOS() {
           <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0"></div>
         </div>
         ${renderSummary()}
-        <button class="button" id="checkout" style="width:100%;margin-top:14px" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Completing..." : "Complete billing"}</button>
+        <div class="bill-actions">
+          <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} Save KOT</button>
+          <button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Completing..." : "Complete billing"}</button>
+        </div>
       </aside>
     </section>
   `;
@@ -634,14 +639,24 @@ function renderPOS() {
 
 function renderTablePicker() {
   const occupied = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length).length;
+  const totalOpenAmount = state.data.tables.reduce((sum, table) => sum + tableTotal(table.id), 0);
+  const kotCount = state.data.kots?.filter((kot) => kot.status !== "billed").length || 0;
   return `
     <section class="table-hero">
       <div>
         <span class="eyebrow">Billing starts here</span>
         <h3>Select a table</h3>
-        <p>Choose a table first, then add products and complete the bill for that table.</p>
+        <p>Choose a table, send KOT to kitchen, then complete billing when the guest pays.</p>
       </div>
-      <div class="table-summary"><strong>${occupied}</strong><span>open bills</span></div>
+      <div class="table-summary-grid">
+        <div class="table-summary"><strong>${occupied}</strong><span>open bills</span></div>
+        <div class="table-summary"><strong>${kotCount}</strong><span>active KOTs</span></div>
+      </div>
+    </section>
+    <section class="table-tools">
+      <button class="button" id="quick-takeaway">${icon("shopping-bag")} New takeaway</button>
+      <button class="button secondary" id="view-kots">${icon("scroll-text")} View KOTs</button>
+      <div><strong>${money(totalOpenAmount)}</strong><span>running table value</span></div>
     </section>
     <section class="grid table-grid">
       ${state.data.tables.map(renderTableCard).join("")}
@@ -665,6 +680,7 @@ function renderTableCard(table) {
         <span>${itemCount} items</span>
         <strong>${money(tableTotal(table.id))}</strong>
       </div>
+      ${occupied ? `<div class="table-card-kot">${icon("scroll-text", 14)} KOT active</div>` : ""}
     </button>
   `;
 }
@@ -1285,8 +1301,12 @@ function renderOpenTableList(openTables) {
 }
 
 function renderKotCards(openTables) {
-  if (!openTables.length) return `<div class="empty">No KOTs waiting</div>`;
-  return `<div class="sale-list">${openTables.map((table) => `<div class="sale-row"><div><h4>KOT • ${table.name}</h4><p>${(state.data.openBills[table.id] || []).map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><strong>${money(tableTotal(table.id))}</strong></div>`).join("")}</div>`;
+  const activeKots = (state.data.kots || []).filter((kot) => kot.status !== "billed");
+  if (!activeKots.length && !openTables.length) return `<div class="empty">No KOTs waiting</div>`;
+  const rows = activeKots.length
+    ? activeKots.map((kot) => `<div class="sale-row"><div><h4>${kot.kotNo} • ${kot.tableName}</h4><p>${kot.items.map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><strong>${kot.status}</strong></div>`)
+    : openTables.map((table) => `<div class="sale-row"><div><h4>KOT • ${table.name}</h4><p>${(state.data.openBills[table.id] || []).map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><strong>${money(tableTotal(table.id))}</strong></div>`);
+  return `<div class="sale-list">${rows.join("")}</div>`;
 }
 
 function duePaymentRows() {
@@ -1348,6 +1368,11 @@ function bindEvents() {
       render();
     });
   });
+  document.querySelector("#quick-takeaway")?.addEventListener("click", () => {
+    state.selectedTableId = state.data.tables.find((table) => table.name.toLowerCase() === "takeaway")?.id || state.data.tables[0]?.id || "";
+    render();
+  });
+  document.querySelector("#view-kots")?.addEventListener("click", () => handleAction("kots", "KOTs"));
   document.querySelector("#back-to-tables")?.addEventListener("click", () => {
     state.selectedTableId = "";
     render();
@@ -1374,6 +1399,7 @@ function bindEvents() {
   });
   document.querySelector("#discount")?.addEventListener("input", updateSummaryOnly);
   document.querySelector("#paid")?.addEventListener("input", updateSummaryOnly);
+  document.querySelector("#save-kot")?.addEventListener("click", saveKot);
   document.querySelector("#checkout")?.addEventListener("click", checkout);
   document.querySelector("#renew-subscription")?.addEventListener("click", renewSubscription);
   document.querySelector("#new-product")?.addEventListener("click", () => { state.modal = { type: "product", product: {} }; render(); });
@@ -1585,6 +1611,28 @@ function changeQty(id, amount) {
   render();
 }
 
+async function saveKot() {
+  const cart = currentCart();
+  const table = selectedTable();
+  if (!cart.length || !table) {
+    setToast("Add menu items before saving KOT", "error");
+    return;
+  }
+  const kot = {
+    id: crypto.randomUUID(),
+    kotNo: `KOT-${String((state.data.kots?.length || 0) + 1).padStart(4, "0")}`,
+    tableId: table.id,
+    tableName: table.name,
+    items: structuredClone(cart),
+    total: tableTotal(table.id),
+    status: "sent",
+    createdAt: new Date().toISOString()
+  };
+  state.data.kots = [kot, ...(state.data.kots || [])].slice(0, 100);
+  await persistSafely(`${kot.kotNo} sent to kitchen`, "KOT saved locally. Cloud sync failed.");
+  render();
+}
+
 async function checkout() {
   if (state.checkoutBusy) return;
   if (!isSubscriptionActive()) {
@@ -1612,6 +1660,7 @@ async function checkout() {
     ...current
   };
   state.checkoutBusy = true;
+  state.data.kots = (state.data.kots || []).map((kot) => kot.tableId === tableId ? { ...kot, status: "billed", billedAt: new Date().toISOString() } : kot);
   state.data.sales.unshift(sale);
   state.data.products = state.data.products.map((product) => {
     const item = cart.find((cartItem) => cartItem.id === product.id);
