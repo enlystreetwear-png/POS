@@ -64,6 +64,7 @@ const state = {
   firebaseConfigured: hasFirebaseConfig(),
   authReady: !hasFirebaseConfig(),
   authBusy: false,
+  checkoutBusy: false,
   cloudReady: false,
   user: null,
   db: null,
@@ -509,7 +510,7 @@ function renderPOS() {
           <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0"></div>
         </div>
         ${renderSummary()}
-        <button class="button" id="checkout" style="width:100%;margin-top:14px" ${locked ? "disabled" : ""}>${icon("receipt-text")} Complete billing</button>
+        <button class="button" id="checkout" style="width:100%;margin-top:14px" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Completing..." : "Complete billing"}</button>
       </aside>
     </section>
   `;
@@ -1130,6 +1131,7 @@ function changeQty(id, amount) {
 }
 
 async function checkout() {
+  if (state.checkoutBusy) return;
   if (!isSubscriptionActive()) {
     state.view = "subscription";
     render();
@@ -1138,8 +1140,9 @@ async function checkout() {
   const cart = currentCart();
   const table = selectedTable();
   if (!cart.length) return alert("Add products before billing.");
-  const customer = state.data.customers.find((item) => item.id === document.querySelector("#customer").value) || state.data.customers[0];
+  const customer = state.data.customers.find((item) => item.id === document.querySelector("#customer")?.value) || state.data.customers[0] || seed.customers[0];
   const current = totals();
+  const tableId = state.selectedTableId;
   const sale = {
     id: crypto.randomUUID(),
     invoiceNo: `${state.data.settings.invoicePrefix}-${String(state.data.sales.length + 1).padStart(5, "0")}`,
@@ -1153,17 +1156,27 @@ async function checkout() {
     items: structuredClone(cart),
     ...current
   };
+  state.checkoutBusy = true;
   state.data.sales.unshift(sale);
   state.data.products = state.data.products.map((product) => {
     const item = cart.find((cartItem) => cartItem.id === product.id);
     return item ? { ...product, stock: Math.max(0, Number(product.stock) - item.qty) } : product;
   });
   state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
-  state.data.openBills[state.selectedTableId] = [];
+  state.data.openBills[tableId] = [];
   state.selectedTableId = "";
-  await persist();
   state.modal = { type: "receipt", sale };
+  writeLocal();
   render();
+  try {
+    await persist();
+  } catch (error) {
+    console.warn("Checkout cloud sync failed", error);
+    state.authError = "Billing completed locally, but cloud sync failed. Check Firebase rules and internet, then continue.";
+  } finally {
+    state.checkoutBusy = false;
+    render();
+  }
 }
 
 async function saveProduct() {
