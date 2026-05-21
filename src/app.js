@@ -662,13 +662,6 @@ function renderTablePicker() {
       <button class="button secondary" id="view-kots">${icon("scroll-text")} View KOTs</button>
       <div><strong>${money(totalOpenAmount)}</strong><span>running table value</span></div>
     </section>
-    <section class="table-manager">
-      <div class="field"><label>Table name</label><input class="input" id="new-table-name" placeholder="Table ${state.data.tables.length + 1}"></div>
-      <div class="field"><label>Seats</label><input class="input" id="new-table-seats" type="number" min="0" value="4"></div>
-      <button class="button" id="add-table">${icon("plus")} Add table</button>
-      <div class="field"><label>Remove table</label><select id="remove-table-id">${state.data.tables.map((table) => `<option value="${table.id}">${escapeAttr(table.name)}</option>`).join("")}</select></div>
-      <button class="button secondary" id="remove-table">${icon("trash-2")} Remove</button>
-    </section>
     <section class="grid table-grid">
       ${state.data.tables.map(renderTableCard).join("")}
     </section>
@@ -1055,6 +1048,7 @@ function renderOutletSettings() {
       ["Display", "monitor", "Customise what appears on the billing screen."],
       ["Calculations", "calculator", "Configure service charges and rounding rules."],
       ["Linked Services", "life-buoy", "Set how add-on services work with your POS system."],
+      ["Table Management", "table-2", "Add or remove restaurant tables."],
       ["Print", "printer", "Manage printing rules for Bill and KOT."],
       ["Customer", "user-round", "Configure phone validation and dues."]
     ]],
@@ -1251,6 +1245,7 @@ function actionDetails(action, label) {
     "display": simple("Display Settings", configPanel("Billing display", "Choose the information cashiers see while billing on PC and mobile.", [{ key: "compactTables", label: "Compact table view", type: "checkbox", value: false }, { key: "showStockOnCards", label: "Show stock on menu cards", type: "checkbox", value: true }, { key: "showDashboardHealth", label: "Show dashboard health", type: "checkbox", value: true }], ["Keep table-first billing as the default.", "Show stock during busy hours.", "Use compact mode on smaller monitors."])),
     "calculations": simple("Calculation Settings", configPanel("Billing calculation", "Control service charge and rounding behavior used at checkout.", [{ key: "serviceCharge", label: "Service charge %", type: "number", value: 0 }, { key: "roundOff", label: "Round off bills", type: "checkbox", value: true }, { key: "roundOffMode", label: "Round off mode", value: "Nearest rupee" }], ["Print a sample bill after changes.", "Keep service charge visible to staff.", "Review totals in Sales report."])),
     "linked-services": simple("Linked Services", configPanel("Service links", "Store service connection details for WhatsApp, delivery, and online orders.", [{ key: "whatsappNumber", label: "WhatsApp number", value: "" }, { key: "deliveryPartner", label: "Delivery partner", value: "" }, { key: "onlineOrderUrl", label: "Online order URL", value: "" }], ["Use one official WhatsApp number.", "Keep partner name current.", "Test links before printing QR codes."])),
+    "table-management": simple("Table Management", renderTableManagementPanel()),
     "print": simple("Print Settings", configPanel("Receipt print", "Set receipt format, GST details, and print behavior.", [{ key: "paperSize", label: "Paper size", value: "80mm" }, { key: "showGstin", label: "Show GSTIN on receipt", type: "checkbox", value: true }, { key: "autoPrintAfterBilling", label: "Auto print after billing", type: "checkbox", value: false }], ["Use browser print for receipts.", "Check margins on 80mm paper.", "Print one receipt after changing logo or GSTIN."])),
     "customer": simple("Customer Settings", configPanel("Guest rules", "Configure how guest phone numbers and credit sales are handled.", [{ key: "phoneRequired", label: "Phone required for guests", type: "checkbox", value: false }, { key: "allowCredit", label: "Allow credit bills", type: "checkbox", value: true }, { key: "creditLimit", label: "Default credit limit", type: "number", value: 0 }], ["Capture phone for credit bills.", "Review dues from Operations.", "Avoid duplicate guest names."])),
     "online-advance-order-configuration": simple("Online / Advance Order Configuration", configPanel("Advance order rules", "Control how future orders are accepted and prepared.", [{ key: "autoAccept", label: "Auto accept orders", type: "checkbox", value: false }, { key: "advanceOrderHours", label: "Advance order hours", type: "number", value: 24 }, { key: "cancelBeforeMinutes", label: "Cancel before minutes", type: "number", value: 30 }], ["Confirm pickup or delivery time.", "Record customer phone.", "Review advance orders before rush hour."])),
@@ -1291,6 +1286,24 @@ function renderBackupPanel() {
       <label class="button secondary file-button">${icon("upload")} Restore backup<input id="import-backup" type="file" accept="application/json"></label>
     </div>
     <div class="auth-error">${icon("shield-alert")}<span>Restore replaces this login’s data only. Other Firebase users stay separate.</span></div>
+  `;
+}
+
+function renderTableManagementPanel() {
+  const tableRows = state.data.tables.map((table) => {
+    const itemCount = (state.data.openBills[table.id] || []).reduce((sum, item) => sum + item.qty, 0);
+    const activeKots = (state.data.kots || []).filter((kot) => kot.tableId === table.id && kot.status !== "billed").length;
+    return [table.name, table.seats || "Takeaway", itemCount, activeKots];
+  });
+  return `
+    <section class="table-manager">
+      <div class="field"><label>Table name</label><input class="input" id="new-table-name" placeholder="Table ${state.data.tables.length + 1}"></div>
+      <div class="field"><label>Seats</label><input class="input" id="new-table-seats" type="number" min="0" value="4"></div>
+      <button class="button" id="add-table">${icon("plus")} Add table</button>
+      <div class="field"><label>Remove table</label><select id="remove-table-id">${state.data.tables.map((table) => `<option value="${table.id}">${escapeAttr(table.name)}</option>`).join("")}</select></div>
+      <button class="button secondary" id="remove-table">${icon("trash-2")} Remove</button>
+    </section>
+    ${reportTable(["Table", "Seats", "Open items", "Active KOTs"], tableRows)}
   `;
 }
 
