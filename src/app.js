@@ -1645,7 +1645,11 @@ async function checkout() {
 async function saveProduct() {
   const saveButton = document.querySelector("#save-product");
   if (saveButton?.disabled) return;
-  if (saveButton) saveButton.disabled = true;
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.innerHTML = `${icon("loader-circle")} Saving...`;
+    lucide.createIcons();
+  }
   const id = document.querySelector("#save-product").dataset.id || crypto.randomUUID();
   const previous = state.data.products.find((product) => product.id === id) || {};
   const file = document.querySelector("#product-image").files[0];
@@ -1672,23 +1676,43 @@ async function saveProduct() {
   }
   if (file) {
     try {
-      product.imageUrl = await saveProductImage(id, file);
-    } catch (error) {
-      console.warn("Product image upload failed, using local image", error);
       product.imageUrl = await imageFileToDataUrl(file);
-      setToast("Image saved locally. Firebase Storage upload failed.", "error");
+    } catch (error) {
+      console.warn("Product image could not be processed", error);
+      product.imageUrl = await fileToDataUrl(file);
     }
     product.imageUpdatedAt = new Date().toISOString();
   }
   const exists = state.data.products.some((item) => item.id === id);
   state.data.products = exists ? state.data.products.map((item) => item.id === id ? product : item) : [product, ...state.data.products];
   state.modal = null;
-  await persistSafely(file ? "Menu item and image saved" : "Menu item saved", "Menu item saved locally. Cloud sync failed.");
+  try {
+    writeLocal();
+    setToast(file ? "Menu item and image saved" : "Menu item saved");
+  } catch (error) {
+    console.warn("Menu item local save failed", error);
+    setToast("Menu item added on screen, but browser storage is full. Use smaller images or remove old image items.", "error");
+  }
   render();
+  syncProductAfterSave(product, file);
 }
 
-async function saveProductImage(id, file) {
-  if (!state.user || !state.storage) return imageFileToDataUrl(file);
+async function syncProductAfterSave(product, file) {
+  try {
+    if (file && state.user && state.storage) {
+      const cloudUrl = await uploadProductImage(product.id, file);
+      state.data.products = state.data.products.map((item) => item.id === product.id ? { ...item, imageUrl: cloudUrl, imageUpdatedAt: new Date().toISOString() } : item);
+      writeLocal();
+    }
+    await persist();
+  } catch (error) {
+    console.warn("Menu item cloud sync failed", error);
+    setToast("Menu item saved locally. Cloud sync failed.", "error");
+    render();
+  }
+}
+
+async function uploadProductImage(id, file) {
   const { ref, uploadBytes, getDownloadURL } = state.firebase.storageMod;
   const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
   const imageRef = ref(state.storage, `tenants/${state.tenantId}/products/${id}-${Date.now()}-${safeName}`);
