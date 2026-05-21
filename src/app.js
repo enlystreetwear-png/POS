@@ -260,6 +260,18 @@ async function persist() {
   }
 }
 
+async function persistSafely(successMessage, errorMessage = "Saved locally. Cloud sync failed.") {
+  try {
+    await persist();
+    setToast(successMessage);
+    return true;
+  } catch (error) {
+    console.warn(errorMessage, error);
+    setToast(errorMessage, "error");
+    return false;
+  }
+}
+
 function money(value) {
   return currency.format(Number(value || 0));
 }
@@ -1547,9 +1559,8 @@ async function closeShift() {
     note: document.querySelector("#close-note")?.value.trim() || ""
   };
   state.data.closings = [closing, ...(state.data.closings || [])];
-  await persist();
   state.modal = { type: "action", action: "close-shift", label: "Close Shift" };
-  setToast("Shift closed");
+  await persistSafely("Shift closed", "Shift close saved locally. Cloud sync failed.");
   render();
 }
 
@@ -1632,6 +1643,9 @@ async function checkout() {
 }
 
 async function saveProduct() {
+  const saveButton = document.querySelector("#save-product");
+  if (saveButton?.disabled) return;
+  if (saveButton) saveButton.disabled = true;
   const id = document.querySelector("#save-product").dataset.id || crypto.randomUUID();
   const previous = state.data.products.find((product) => product.id === id) || {};
   const file = document.querySelector("#product-image").files[0];
@@ -1646,12 +1660,14 @@ async function saveProduct() {
     imageUrl: previous.imageUrl || "",
     imageUpdatedAt: previous.imageUpdatedAt || ""
   };
-  if (product.price <= 0) {
-    setToast("Enter a valid menu price", "error");
+  if (product.price < 0) {
+    setToast("Menu price cannot be negative", "error");
+    if (saveButton) saveButton.disabled = false;
     return;
   }
   if (product.stock < 0) {
     setToast("Stock cannot be negative", "error");
+    if (saveButton) saveButton.disabled = false;
     return;
   }
   if (file) {
@@ -1659,7 +1675,7 @@ async function saveProduct() {
       product.imageUrl = await saveProductImage(id, file);
     } catch (error) {
       console.warn("Product image upload failed, using local image", error);
-      product.imageUrl = await fileToDataUrl(file);
+      product.imageUrl = await imageFileToDataUrl(file);
       setToast("Image saved locally. Firebase Storage upload failed.", "error");
     }
     product.imageUpdatedAt = new Date().toISOString();
@@ -1667,18 +1683,51 @@ async function saveProduct() {
   const exists = state.data.products.some((item) => item.id === id);
   state.data.products = exists ? state.data.products.map((item) => item.id === id ? product : item) : [product, ...state.data.products];
   state.modal = null;
-  await persist();
-  if (!file || state.toast?.type !== "error") setToast(file ? "Menu item and image saved" : "Menu item saved");
+  await persistSafely(file ? "Menu item and image saved" : "Menu item saved", "Menu item saved locally. Cloud sync failed.");
   render();
 }
 
 async function saveProductImage(id, file) {
-  if (!state.user || !state.storage) return fileToDataUrl(file);
+  if (!state.user || !state.storage) return imageFileToDataUrl(file);
   const { ref, uploadBytes, getDownloadURL } = state.firebase.storageMod;
   const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
   const imageRef = ref(state.storage, `tenants/${state.tenantId}/products/${id}-${Date.now()}-${safeName}`);
   await uploadBytes(imageRef, file);
   return getDownloadURL(imageRef);
+}
+
+async function imageFileToDataUrl(file) {
+  if (!file?.type?.startsWith("image/")) return fileToDataUrl(file);
+  try {
+    const image = await loadImage(file);
+    const maxSize = 900;
+    const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * ratio));
+    canvas.height = Math.max(1, Math.round(image.height * ratio));
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.78);
+  } catch (error) {
+    console.warn("Image resize failed", error);
+    return fileToDataUrl(file);
+  }
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image could not be loaded"));
+    };
+    image.src = url;
+  });
 }
 
 function fileToDataUrl(file) {
@@ -1698,8 +1747,7 @@ async function saveSettings() {
     taxRate: Number(document.querySelector("#setting-taxRate").value || 0),
     address: document.querySelector("#setting-address").value.trim()
   };
-  await persist();
-  setToast("Restaurant settings saved");
+  await persistSafely("Restaurant settings saved", "Restaurant settings saved locally. Cloud sync failed.");
   render();
 }
 
@@ -1723,9 +1771,8 @@ async function saveModuleSettings() {
   if (action === "tax" && values.taxRate) {
     state.data.settings.taxRate = Number(values.taxRate || state.data.settings.taxRate);
   }
-  await persist();
   state.modal = null;
-  setToast("Module settings saved");
+  await persistSafely("Module settings saved", "Module settings saved locally. Cloud sync failed.");
   render();
 }
 
@@ -1759,8 +1806,7 @@ async function saveCustomer() {
   };
   state.data.customers = [customer, ...state.data.customers];
   state.modal = null;
-  await persist();
-  setToast("Guest saved");
+  await persistSafely("Guest saved", "Guest saved locally. Cloud sync failed.");
   render();
 }
 
@@ -1961,8 +2007,7 @@ async function renewSubscription() {
   const current = getSubscription();
   const renewalStart = new Date(current.expiresAt) > new Date() ? new Date(current.expiresAt) : new Date();
   state.data.subscription = annualSubscription(renewalStart);
-  await persist();
-  setToast("Annual plan updated");
+  await persistSafely("Annual plan updated", "Annual plan saved locally. Cloud sync failed.");
   render();
 }
 
