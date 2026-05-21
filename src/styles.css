@@ -554,6 +554,24 @@ textarea:focus {
   font-size: 13px;
 }
 
+.table-manager {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 110px auto minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.table-manager .button {
+  min-height: 47px;
+  white-space: nowrap;
+}
+
 .table-card {
   min-height: 168px;
   display: flex;
@@ -1519,6 +1537,10 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .table-manager {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .bill-panel {
     position: static;
     height: auto;
@@ -1576,7 +1598,8 @@ textarea:focus {
   }
 
   .table-summary-grid,
-  .bill-actions {
+  .bill-actions,
+  .table-manager {
     grid-template-columns: 1fr;
   }
 

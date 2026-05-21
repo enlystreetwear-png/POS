@@ -662,6 +662,13 @@ function renderTablePicker() {
       <button class="button secondary" id="view-kots">${icon("scroll-text")} View KOTs</button>
       <div><strong>${money(totalOpenAmount)}</strong><span>running table value</span></div>
     </section>
+    <section class="table-manager">
+      <div class="field"><label>Table name</label><input class="input" id="new-table-name" placeholder="Table ${state.data.tables.length + 1}"></div>
+      <div class="field"><label>Seats</label><input class="input" id="new-table-seats" type="number" min="0" value="4"></div>
+      <button class="button" id="add-table">${icon("plus")} Add table</button>
+      <div class="field"><label>Remove table</label><select id="remove-table-id">${state.data.tables.map((table) => `<option value="${table.id}">${escapeAttr(table.name)}</option>`).join("")}</select></div>
+      <button class="button secondary" id="remove-table">${icon("trash-2")} Remove</button>
+    </section>
     <section class="grid table-grid">
       ${state.data.tables.map(renderTableCard).join("")}
     </section>
@@ -1396,6 +1403,8 @@ function bindEvents() {
     render();
   });
   document.querySelector("#view-kots")?.addEventListener("click", () => handleAction("kots", "KOTs"));
+  document.querySelector("#add-table")?.addEventListener("click", addTable);
+  document.querySelector("#remove-table")?.addEventListener("click", removeTable);
   document.querySelector("#back-to-tables")?.addEventListener("click", () => {
     state.selectedTableId = "";
     render();
@@ -1661,6 +1670,42 @@ async function saveKot() {
   state.data.kots = [kot, ...(state.data.kots || [])].slice(0, 100);
   await persistSafely(`${kot.kotNo} sent to kitchen`, "KOT saved locally. Cloud sync failed.");
   state.modal = { type: "kot", kot };
+  render();
+}
+
+async function addTable() {
+  const nameInput = document.querySelector("#new-table-name");
+  const seatsInput = document.querySelector("#new-table-seats");
+  const name = nameInput?.value.trim() || `Table ${state.data.tables.length + 1}`;
+  const seats = Math.max(0, Number(seatsInput?.value || 0));
+  if (state.data.tables.some((table) => table.name.toLowerCase() === name.toLowerCase())) {
+    setToast("Table name already exists", "error");
+    return;
+  }
+  state.data.tables.push({ id: `T-${crypto.randomUUID()}`, name, seats });
+  await persistSafely("Table added", "Table added locally. Cloud sync failed.");
+  render();
+}
+
+async function removeTable() {
+  const tableId = document.querySelector("#remove-table-id")?.value;
+  const table = state.data.tables.find((item) => item.id === tableId);
+  if (!table) return;
+  const hasOpenBill = (state.data.openBills[table.id] || []).length > 0;
+  const hasActiveKot = (state.data.kots || []).some((kot) => kot.tableId === table.id && kot.status !== "billed");
+  if (hasOpenBill || hasActiveKot) {
+    setToast("Close the bill and KOT before removing this table", "error");
+    return;
+  }
+  if (state.data.tables.length <= 1) {
+    setToast("At least one table is required", "error");
+    return;
+  }
+  if (!confirm(`Remove ${table.name}?`)) return;
+  state.data.tables = state.data.tables.filter((item) => item.id !== table.id);
+  delete state.data.openBills[table.id];
+  if (state.selectedTableId === table.id) state.selectedTableId = "";
+  await persistSafely("Table removed", "Table removed locally. Cloud sync failed.");
   render();
 }
 
