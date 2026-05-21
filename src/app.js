@@ -9,6 +9,7 @@ const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
 const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
 const googleRedirectSessionKey = "pondypos-google-redirect-pending";
+const dataStoragePrefix = "pondypos-data";
 
 const demoProducts = [
   { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
@@ -53,6 +54,9 @@ const seed = {
   sales: []
 };
 
+const initialSession = readLocalSession();
+const initialTenantId = initialSession?.firebaseUid || "demo";
+
 const state = {
   view: "pos",
   sidebarExpanded: readStorage("pondypos-sidebar-expanded", "countercloud-sidebar-expanded") === "true",
@@ -68,9 +72,9 @@ const state = {
   recaptchaVerifier: null,
   otpSent: false,
   otpConfirmation: null,
-  localSession: readLocalSession(),
-  tenantId: "demo",
-  data: readLocal(),
+  localSession: initialSession,
+  tenantId: initialTenantId,
+  data: readLocal(initialTenantId),
   selectedTableId: "",
   search: "",
   modal: null,
@@ -80,9 +84,13 @@ const state = {
 
 const app = document.querySelector("#app");
 
-function readLocal() {
-  migrateStorageKey("countercloud-pos", "pondypos-data");
-  const saved = localStorage.getItem("pondypos-data");
+function dataStorageKey(tenantId = state?.tenantId || "demo") {
+  return tenantId && tenantId !== "demo" ? `${dataStoragePrefix}-${tenantId}` : `${dataStoragePrefix}-demo`;
+}
+
+function readLocal(tenantId = state?.tenantId || "demo") {
+  if (tenantId === "demo") migrateStorageKey("countercloud-pos", dataStorageKey("demo"));
+  const saved = localStorage.getItem(dataStorageKey(tenantId));
   if (!saved) return normalizeData(structuredClone(seed));
   try {
     return normalizeData({ ...structuredClone(seed), ...JSON.parse(saved) });
@@ -92,7 +100,7 @@ function readLocal() {
 }
 
 function writeLocal() {
-  localStorage.setItem("pondypos-data", JSON.stringify(state.data));
+  localStorage.setItem(dataStorageKey(), JSON.stringify(state.data));
 }
 
 function normalizeData(data) {
@@ -192,6 +200,8 @@ async function initFirebase() {
   authMod.onAuthStateChanged(state.auth, async (user) => {
     state.user = user;
     state.tenantId = user?.uid || "demo";
+    state.data = readLocal(state.tenantId);
+    state.selectedTableId = "";
     state.authReady = true;
     state.authBusy = false;
     if (user) rememberSignedInUser(user);
@@ -217,6 +227,7 @@ async function pullCloudData() {
     state.data = normalizeData({ ...structuredClone(seed), ...snap.data() });
     writeLocal();
   } else {
+    state.data = readLocal(state.tenantId);
     await setDoc(ref, state.data);
   }
 }
@@ -921,6 +932,11 @@ function renderOutletSettings() {
       </div>
       <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
     </section>
+    <section class="panel settings-panel">
+      <div class="panel-header"><h3>Account Data</h3></div>
+      <p class="muted">Current login ID: ${currentEmail()}</p>
+      <button class="button warn" id="reset-account-data">${icon("trash-2")} Reset this login data</button>
+    </section>
   `;
 }
 
@@ -1058,6 +1074,7 @@ function bindEvents() {
   }));
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
+  document.querySelector("#reset-account-data")?.addEventListener("click", resetCurrentAccountData);
   document.querySelector("#new-customer")?.addEventListener("click", () => { state.modal = { type: "customer" }; render(); });
   document.querySelector("#save-customer")?.addEventListener("click", saveCustomer);
   document.querySelectorAll("[data-receipt]").forEach((button) => button.addEventListener("click", () => {
@@ -1075,6 +1092,9 @@ function bindEvents() {
     state.localSession = null;
     state.otpSent = false;
     state.otpConfirmation = null;
+    state.tenantId = "demo";
+    state.data = readLocal("demo");
+    state.selectedTableId = "";
     localStorage.removeItem("pondypos-session");
     localStorage.removeItem(googleRedirectSessionKey);
     resetRecaptcha();
@@ -1194,6 +1214,25 @@ async function saveSettings() {
     address: document.querySelector("#setting-address").value.trim()
   };
   await persist();
+  render();
+}
+
+async function resetCurrentAccountData() {
+  if (!confirm("Delete all billing, menu, guest, and order data for this login and start fresh?")) return;
+  const tenantId = state.tenantId;
+  state.data = normalizeData(structuredClone(seed));
+  state.selectedTableId = "";
+  localStorage.removeItem(dataStorageKey(tenantId));
+  writeLocal();
+  if (state.user && state.db) {
+    const { doc, deleteDoc, setDoc, serverTimestamp } = state.firebase.fireMod;
+    const ref = doc(state.db, "tenants", tenantId);
+    await deleteDoc(ref);
+    await setDoc(ref, {
+      ...state.data,
+      updatedAt: serverTimestamp()
+    });
+  }
   render();
 }
 
