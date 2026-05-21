@@ -269,6 +269,36 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.dashboard-split {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  margin-top: 16px;
+  align-items: start;
+}
+
+.status-tile {
+  min-height: 78px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.status-tile svg {
+  color: var(--brand);
+}
+
+.status-tile span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-tile strong {
+  font-size: 18px;
+}
+
 .pos-grid {
   grid-template-columns: minmax(0, 1fr) 390px;
   align-items: start;
@@ -411,6 +441,18 @@ textarea:focus {
   background: #ffffff;
   border: 1px solid var(--line);
   box-shadow: 0 8px 18px rgba(23, 32, 31, 0.08);
+}
+
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .button:disabled {
@@ -1193,6 +1235,36 @@ textarea:focus {
   accent-color: var(--brand);
 }
 
+.health-list {
+  display: grid;
+  gap: 10px;
+}
+
+.health-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.health-row.warn {
+  background: #eef2f7;
+}
+
+.health-row strong,
+.health-row span {
+  display: block;
+}
+
+.health-row span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
 .report-shell {
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   align-items: start;
@@ -1317,6 +1389,7 @@ textarea:focus {
   }
 
   .dashboard-grid,
+  .dashboard-split,
   .form-grid,
   .auth {
     grid-template-columns: 1fr;

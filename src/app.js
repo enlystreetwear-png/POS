@@ -51,7 +51,8 @@ const seed = {
   customers: [
     { id: crypto.randomUUID(), name: "Walk-in Customer", phone: "", email: "", totalSpent: 0 }
   ],
-  sales: []
+  sales: [],
+  closings: []
 };
 
 const initialSession = readLocalSession();
@@ -122,7 +123,8 @@ function normalizeData(data) {
     openBills: data.openBills || {},
     products: shouldUseRestaurantSeed(data.products) ? freshSeed.products : data.products,
     customers: data.customers?.length ? data.customers : freshSeed.customers,
-    sales: data.sales || []
+    sales: data.sales || [],
+    closings: data.closings || []
   };
 }
 
@@ -515,15 +517,38 @@ function renderDashboard() {
   const todaysSales = state.data.sales.filter((sale) => new Date(sale.createdAt).toDateString() === today);
   const revenue = todaysSales.reduce((sum, sale) => sum + sale.total, 0);
   const lowStock = state.data.products.filter((product) => Number(product.stock) <= 5).length;
+  const openTables = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length);
+  const avgBill = todaysSales.length ? revenue / todaysSales.length : 0;
+  const health = businessHealth();
   return `
     <section class="grid dashboard-grid">
       ${metric("Today Revenue", money(revenue), "indian-rupee")}
       ${metric("Invoices Today", todaysSales.length, "receipt")}
-      ${metric("Products", state.data.products.length, "boxes")}
-      ${metric("Low Stock", lowStock, "triangle-alert")}
+      ${metric("Open Tables", openTables.length, "utensils")}
+      ${metric("Average Bill", money(avgBill), "chart-no-axes-column")}
+    </section>
+    <section class="grid dashboard-split">
+      <div class="panel">
+        <div class="panel-header"><h3>Today control center</h3><div class="toolbar"><button class="button secondary" id="export-backup">${icon("download")} Backup</button><button class="button" id="close-shift">${icon("badge-check")} Close shift</button></div></div>
+        <div class="ops-grid compact">
+          ${statusTile("Open bills", openTables.length, "circle-dot")}
+          ${statusTile("Low stock", lowStock, lowStock ? "triangle-alert" : "circle-check")}
+          ${statusTile("Cloud sync", syncLabel(), syncIcon())}
+          ${statusTile("Last close", lastClosingLabel(), "clock")}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Business health</h3><button class="button secondary" data-action="backup-restore" data-action-label="Backup & Restore">${icon("shield-check")} Data tools</button></div>
+        <div class="health-list">${health.map((item) => `
+          <div class="health-row ${item.status}">
+            ${icon(item.status === "ok" ? "circle-check" : "circle-alert", 18)}
+            <div><strong>${item.title}</strong><span>${item.text}</span></div>
+          </div>
+        `).join("")}</div>
+      </div>
     </section>
     <section class="panel" style="margin-top:16px">
-      <div class="panel-header"><h3>Recent invoices</h3><button class="button secondary" data-view="sales">${icon("arrow-right")} View sales</button></div>
+      <div class="panel-header"><h3>Recent invoices</h3><div class="toolbar"><button class="button secondary" data-view="reports">${icon("chart-line")} Reports</button><button class="button secondary" data-view="sales">${icon("arrow-right")} View sales</button></div></div>
       ${renderSaleList(state.data.sales.slice(0, 6))}
     </section>
   `;
@@ -531,6 +556,28 @@ function renderDashboard() {
 
 function metric(label, value, iconName) {
   return `<div class="metric">${icon(iconName)}<span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function statusTile(label, value, iconName) {
+  return `<div class="status-tile">${icon(iconName, 20)}<span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function businessHealth() {
+  const lowStock = state.data.products.filter((product) => Number(product.stock) <= 5).length;
+  const hasFirebase = Boolean(state.user);
+  const openBills = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length).length;
+  const profileReady = Boolean(state.data.settings.shopName && state.data.settings.phone && state.data.settings.address);
+  return [
+    { status: hasFirebase ? "ok" : "warn", title: "Cloud account", text: hasFirebase ? "Data is separated by Firebase login." : "Login with phone or Google for cloud sync." },
+    { status: profileReady ? "ok" : "warn", title: "Restaurant profile", text: profileReady ? "Receipt identity is ready." : "Add phone and address in Settings." },
+    { status: lowStock ? "warn" : "ok", title: "Inventory", text: lowStock ? `${lowStock} items need stock review.` : "Stock levels look healthy." },
+    { status: openBills ? "warn" : "ok", title: "Open tables", text: openBills ? `${openBills} running bills need settlement.` : "No open table bills." }
+  ];
+}
+
+function lastClosingLabel() {
+  const closing = state.data.closings?.[0];
+  return closing ? new Date(closing.closedAt).toLocaleDateString() : "Not done";
 }
 
 function renderPOS() {
@@ -804,6 +851,8 @@ function renderOperations() {
     ["System Settings", [
       ["Billing User Profile", "id-card", "Cashier and staff access."],
       ["Manual Sync", "refresh-cw", "Push and pull cloud data."],
+      ["Close Shift", "badge-check", "End-of-day counter close and summary."],
+      ["Backup & Restore", "database-backup", "Export and restore restaurant data."],
       ["Alerts", "bell", "System and stock alerts."],
       ["Service Renewal", "rotate-ccw", "Subscription and service renewal."],
       ["Help", "circle-help", "Support and help center."],
@@ -1131,9 +1180,42 @@ function actionDetails(action, label) {
     "online-advance-order-configuration": simple("Online / Advance Order Configuration", configForm([{ key: "autoAccept", label: "Auto accept orders", type: "checkbox", value: false }, { key: "advanceOrderHours", label: "Advance order hours", type: "number", value: 24 }])),
     "billing-system": simple("Billing System", configForm([{ key: "invoicePrefix", label: "Invoice prefix", value: state.data.settings.invoicePrefix }, { key: "counterName", label: "Counter name", value: "Billing Station" }])),
     "language-profiles": simple("Language Profiles", configForm([{ key: "language", label: "Primary language", value: "English" }, { key: "receiptLanguage", label: "Receipt language", value: "English" }])),
-    "manual-sync": simple("Manual Sync", `${metricStrip([["Cloud status", state.user ? "Synced" : "Local"], ["Data owner", currentEmail()], ["Last action", "Sync complete"]])}<p class="muted">Your latest local data was pushed to Firebase, then the latest cloud copy was pulled back for this login.</p>`)
+    "manual-sync": simple("Manual Sync", `${metricStrip([["Cloud status", state.user ? "Synced" : "Local"], ["Data owner", currentEmail()], ["Last action", "Sync complete"]])}<p class="muted">Your latest local data was pushed to Firebase, then the latest cloud copy was pulled back for this login.</p>`),
+    "close-shift": simple("Close Shift", renderCloseShiftPanel()),
+    "backup-restore": simple("Backup & Restore", renderBackupPanel())
   };
   return actionMap[action] || simple(label, `<p class="muted">${label} is connected to this workspace.</p>`);
+}
+
+function renderCloseShiftPanel() {
+  const today = new Date().toDateString();
+  const todaysSales = state.data.sales.filter((sale) => new Date(sale.createdAt).toDateString() === today);
+  const total = todaysSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const cash = todaysSales.filter((sale) => sale.paymentMethod === "Cash").reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const openTables = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length);
+  return `
+    ${metricStrip([["Orders", todaysSales.length], ["Sales", money(total)], ["Cash", money(cash)], ["Open bills", openTables.length]])}
+    ${openTables.length ? `<div class="auth-error">${icon("circle-alert")}<span>Close or clear open table bills before final counter settlement.</span></div>` : ""}
+    <div class="form-grid">
+      <div class="field"><label>Cash counted</label><input class="input" id="close-cash" type="number" value="${cash.toFixed(2)}"></div>
+      <div class="field"><label>Closer name</label><input class="input" id="close-user" value="${escapeAttr(currentEmail())}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Notes</label><input class="input" id="close-note" placeholder="Any mismatch, waste, or handover note"></div>
+    </div>
+    <button class="button" id="save-close-shift" style="margin-top:14px" ${openTables.length ? "disabled" : ""}>${icon("badge-check")} Save shift close</button>
+    ${state.data.closings?.length ? `<div class="sale-list" style="margin-top:14px">${state.data.closings.slice(0, 3).map((closing) => `<div class="sale-row"><div><h4>${new Date(closing.closedAt).toLocaleString()}</h4><p>${closing.orders} orders • ${closing.closedBy}</p></div><strong>${money(closing.total)}</strong></div>`).join("")}</div>` : ""}
+  `;
+}
+
+function renderBackupPanel() {
+  return `
+    <p class="muted">Use this before major menu edits, Firebase cleanup, or yearly renewal work.</p>
+    ${metricStrip([["Menu items", state.data.products.length], ["Guests", state.data.customers.length], ["Invoices", state.data.sales.length], ["Closings", state.data.closings?.length || 0]])}
+    <div class="toolbar" style="margin-bottom:14px">
+      <button class="button" id="export-backup-modal">${icon("download")} Export backup</button>
+      <label class="button secondary file-button">${icon("upload")} Restore backup<input id="import-backup" type="file" accept="application/json"></label>
+    </div>
+    <div class="auth-error">${icon("shield-alert")}<span>Restore replaces this login’s data only. Other Firebase users stay separate.</span></div>
+  `;
 }
 
 function moduleField(action, field, value, type = "text") {
@@ -1203,6 +1285,11 @@ function bindEvents() {
   });
   document.querySelector("#print-report")?.addEventListener("click", printReport);
   document.querySelector("#export-report")?.addEventListener("click", exportReportCsv);
+  document.querySelector("#export-backup")?.addEventListener("click", exportBackup);
+  document.querySelector("#export-backup-modal")?.addEventListener("click", exportBackup);
+  document.querySelector("#import-backup")?.addEventListener("change", importBackup);
+  document.querySelector("#close-shift")?.addEventListener("click", () => handleAction("close-shift", "Close Shift"));
+  document.querySelector("#save-close-shift")?.addEventListener("click", closeShift);
   document.querySelectorAll("[data-action][data-action-label]").forEach((button) => {
     button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.actionLabel));
   });
@@ -1341,6 +1428,78 @@ function exportReportCsv() {
   link.click();
   URL.revokeObjectURL(url);
   setToast("Report exported");
+  render();
+}
+
+function exportBackup() {
+  const backup = {
+    app: "PondyPOS",
+    version: assetVersion,
+    exportedAt: new Date().toISOString(),
+    tenantId: state.tenantId,
+    data: state.data
+  };
+  downloadText(`pondypos-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(backup, null, 2), "application/json");
+  setToast("Backup exported");
+  render();
+}
+
+function downloadText(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importBackup(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!confirm("Restore this backup to the current login? This will replace current menu, tables, guests, orders, and settings.")) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    const restored = payload.data || payload;
+    state.data = normalizeData({ ...structuredClone(seed), ...restored });
+    state.selectedTableId = "";
+    await persist();
+    state.modal = null;
+    setToast("Backup restored");
+    render();
+  } catch (error) {
+    console.warn("Backup restore failed", error);
+    setToast("Backup restore failed", "error");
+    render();
+  }
+}
+
+async function closeShift() {
+  const openTables = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length);
+  if (openTables.length) {
+    setToast("Close open table bills before closing shift", "error");
+    return;
+  }
+  const today = new Date().toDateString();
+  const todaysSales = state.data.sales.filter((sale) => new Date(sale.createdAt).toDateString() === today);
+  const total = todaysSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const cashExpected = todaysSales.filter((sale) => sale.paymentMethod === "Cash").reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const cashCounted = Number(document.querySelector("#close-cash")?.value || 0);
+  const closing = {
+    id: crypto.randomUUID(),
+    closedAt: new Date().toISOString(),
+    closedBy: document.querySelector("#close-user")?.value.trim() || currentEmail(),
+    orders: todaysSales.length,
+    total,
+    cashExpected,
+    cashCounted,
+    cashDifference: cashCounted - cashExpected,
+    note: document.querySelector("#close-note")?.value.trim() || ""
+  };
+  state.data.closings = [closing, ...(state.data.closings || [])];
+  await persist();
+  state.modal = { type: "action", action: "close-shift", label: "Close Shift" };
+  setToast("Shift closed");
   render();
 }
 
