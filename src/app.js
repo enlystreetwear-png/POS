@@ -61,10 +61,13 @@ const state = {
   view: "pos",
   sidebarExpanded: readStorage("pondypos-sidebar-expanded", "countercloud-sidebar-expanded") === "true",
   reportKey: "category",
+  reportSearch: "",
   firebaseConfigured: hasFirebaseConfig(),
   authReady: !hasFirebaseConfig(),
   authBusy: false,
   checkoutBusy: false,
+  syncStatus: "idle",
+  toast: null,
   cloudReady: false,
   user: null,
   db: null,
@@ -236,12 +239,23 @@ async function pullCloudData() {
 
 async function persist() {
   writeLocal();
-  if (!state.user || !state.db) return;
+  if (!state.user || !state.db) {
+    state.syncStatus = "local";
+    return;
+  }
   const { doc, setDoc, serverTimestamp } = state.firebase.fireMod;
-  await setDoc(doc(state.db, "tenants", state.tenantId), {
-    ...state.data,
-    updatedAt: serverTimestamp()
-  });
+  state.syncStatus = "syncing";
+  try {
+    await setDoc(doc(state.db, "tenants", state.tenantId), {
+      ...state.data,
+      updatedAt: serverTimestamp()
+    });
+    state.syncStatus = "synced";
+    state.lastSyncedAt = new Date().toISOString();
+  } catch (error) {
+    state.syncStatus = "error";
+    throw error;
+  }
 }
 
 function money(value) {
@@ -321,6 +335,12 @@ function render() {
   app.innerHTML = !isAuthenticated() ? renderAuth() : renderShell();
   lucide.createIcons();
   bindEvents();
+  if (state.focusReportSearch) {
+    const search = document.querySelector("#report-search");
+    search?.focus();
+    search?.setSelectionRange(search.value.length, search.value.length);
+    state.focusReportSearch = false;
+  }
 }
 
 function renderAuth() {
@@ -381,6 +401,7 @@ function renderShell() {
       </main>
       ${renderMobileNav()}
       ${state.modal ? renderModal() : ""}
+      ${renderToast()}
     </div>
   `;
 }
@@ -436,10 +457,45 @@ function renderTopbar() {
       <div><h2>${title}</h2><p>${sub}</p></div>
       <div class="toolbar">
         <div class="status-pill ${isSubscriptionActive() ? "ok" : "danger"}">${icon(isSubscriptionActive() ? "badge-check" : "badge-x", 16)} ${isSubscriptionActive() ? `${subscriptionDaysLeft()} days left` : "Plan expired"}</div>
-        <div class="status-pill">${icon(state.user ? "cloud" : "hard-drive", 16)} ${state.user ? "Firebase cloud sync" : "Local account"}</div>
+        <div class="status-pill ${state.syncStatus === "error" ? "danger" : ""}">${icon(syncIcon(), 16)} ${syncLabel()}</div>
       </div>
     </header>
   `;
+}
+
+function syncIcon() {
+  if (!state.user) return "hard-drive";
+  if (state.syncStatus === "syncing") return "loader-circle";
+  if (state.syncStatus === "error") return "cloud-off";
+  return "cloud-check";
+}
+
+function syncLabel() {
+  if (!state.user) return "Local mode";
+  if (state.syncStatus === "syncing") return "Syncing";
+  if (state.syncStatus === "error") return "Sync issue";
+  if (state.lastSyncedAt) return `Synced ${new Date(state.lastSyncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return "Firebase cloud";
+}
+
+function renderToast() {
+  if (!state.toast) return "";
+  return `
+    <div class="toast ${state.toast.type || "info"}">
+      ${icon(state.toast.type === "error" ? "circle-alert" : "circle-check", 18)}
+      <span>${state.toast.message}</span>
+      <button class="icon-button" id="close-toast" title="Close">${icon("x", 16)}</button>
+    </div>
+  `;
+}
+
+function setToast(message, type = "success") {
+  state.toast = { message, type };
+  window.clearTimeout(state.toastTimer);
+  state.toastTimer = window.setTimeout(() => {
+    state.toast = null;
+    render();
+  }, 3200);
 }
 
 const views = {
@@ -760,7 +816,7 @@ function renderOperations() {
       <div class="ops-grid">${items.map(([label, iconName, text]) => `
         <button class="ops-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">
           ${icon(iconName, 22)}
-          <span><strong>${label}</strong><small>${text}</small></span>
+          <span><strong>${label}</strong><small>${text}</small>${moduleStatus(label)}</span>
         </button>
       `).join("")}</div>
     </section>
@@ -779,9 +835,9 @@ function renderReports() {
         <div class="panel-header">
           <h3>${report.title}</h3>
           <div class="toolbar">
-            <button class="button secondary">${icon("search", 16)} Search</button>
-            <button class="button secondary">${icon("printer", 16)} Print</button>
-            <button class="button secondary">${icon("file-spreadsheet", 16)} Export Excel</button>
+            <input class="input report-search" id="report-search" placeholder="Search report" value="${escapeAttr(state.reportSearch)}">
+            <button class="button secondary" id="print-report">${icon("printer", 16)} Print</button>
+            <button class="button secondary" id="export-report">${icon("file-spreadsheet", 16)} Export CSV</button>
           </div>
         </div>
         ${report.render()}
@@ -892,7 +948,9 @@ function renderNoRecord() {
 }
 
 function reportTable(headers, rows) {
-  return `<div class="table-scroll"><table class="table report-table"><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.map((row, index) => `<tr class="${index === 0 ? "total" : ""}">${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const query = state.reportSearch.trim().toLowerCase();
+  const filteredRows = query ? rows.filter((row, index) => index === 0 || row.join(" ").toLowerCase().includes(query)) : rows;
+  return `<div class="table-scroll"><table class="table report-table"><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${filteredRows.map((row, index) => `<tr class="${index === 0 ? "total" : ""}">${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderOutletSettings() {
@@ -919,7 +977,7 @@ function renderOutletSettings() {
       <section class="panel settings-panel">
         <div class="panel-header"><h3>${title}</h3></div>
         <div class="settings-grid">${items.map(([label, iconName, text]) => `
-          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">${icon(iconName, 22)}<span><strong>${label}</strong><small>${text}</small></span>${icon("arrow-right", 18)}</button>
+          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">${icon(iconName, 22)}<span><strong>${label}</strong><small>${text}</small>${moduleStatus(label)}</span>${icon("arrow-right", 18)}</button>
         `).join("")}</div>
       </section>
     `).join("")}
@@ -962,6 +1020,11 @@ function renderModal() {
 
 function actionKey(label = "") {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function moduleStatus(label) {
+  const saved = state.data.modules?.[actionKey(label)]?.updatedAt;
+  return saved ? `<em>Configured ${new Date(saved).toLocaleDateString()}</em>` : "";
 }
 
 function renderProductModal(product = {}) {
@@ -1129,9 +1192,17 @@ function bindEvents() {
   document.querySelectorAll("[data-report]").forEach((button) => {
     button.addEventListener("click", () => {
       state.reportKey = button.dataset.report;
+      state.reportSearch = "";
       render();
     });
   });
+  document.querySelector("#report-search")?.addEventListener("input", (event) => {
+    state.reportSearch = event.target.value;
+    state.focusReportSearch = true;
+    render();
+  });
+  document.querySelector("#print-report")?.addEventListener("click", printReport);
+  document.querySelector("#export-report")?.addEventListener("click", exportReportCsv);
   document.querySelectorAll("[data-action][data-action-label]").forEach((button) => {
     button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.actionLabel));
   });
@@ -1180,6 +1251,10 @@ function bindEvents() {
   }));
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => { state.modal = null; render(); }));
   document.querySelector("#print-receipt")?.addEventListener("click", () => window.print());
+  document.querySelector("#close-toast")?.addEventListener("click", () => {
+    state.toast = null;
+    render();
+  });
   document.querySelector("#send-otp")?.addEventListener("click", sendPhoneOtp);
   document.querySelector("#verify-otp")?.addEventListener("click", verifyPhoneOtp);
   document.querySelector("#change-phone")?.addEventListener("click", resetPhoneOtp);
@@ -1236,12 +1311,37 @@ async function manualSync() {
       action: "manual-sync",
       label: "Manual Sync"
     };
+    setToast("Manual sync completed");
     render();
   } catch (error) {
     console.warn("Manual sync failed", error);
     state.authError = "Manual sync failed. Check Firebase rules and internet connection.";
+    setToast("Manual sync failed", "error");
     render();
   }
+}
+
+function printReport() {
+  document.body.classList.add("report-printing");
+  window.print();
+  window.setTimeout(() => document.body.classList.remove("report-printing"), 500);
+}
+
+function exportReportCsv() {
+  const table = document.querySelector(".report-table");
+  if (!table) return;
+  const rows = [...table.querySelectorAll("tr")].map((row) =>
+    [...row.children].map((cell) => `"${cell.textContent.replaceAll('"', '""')}"`).join(",")
+  ).join("\n");
+  const blob = new Blob([rows], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${state.reportKey}-report.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  setToast("Report exported");
+  render();
 }
 
 function updateSummaryOnly() {
@@ -1314,7 +1414,9 @@ async function checkout() {
   } catch (error) {
     console.warn("Checkout cloud sync failed", error);
     state.authError = "Billing completed locally, but cloud sync failed. Check Firebase rules and internet, then continue.";
+    setToast("Billing completed locally. Cloud sync failed.", "error");
   } finally {
+    if (state.syncStatus !== "error") setToast("Billing completed");
     state.checkoutBusy = false;
     render();
   }
@@ -1347,6 +1449,7 @@ async function saveProduct() {
   state.data.products = exists ? state.data.products.map((item) => item.id === id ? product : item) : [product, ...state.data.products];
   state.modal = null;
   await persist();
+  setToast("Menu item saved");
   render();
 }
 
@@ -1368,6 +1471,7 @@ async function saveSettings() {
     address: document.querySelector("#setting-address").value.trim()
   };
   await persist();
+  setToast("Restaurant settings saved");
   render();
 }
 
@@ -1393,6 +1497,7 @@ async function saveModuleSettings() {
   }
   await persist();
   state.modal = null;
+  setToast("Module settings saved");
   render();
 }
 
@@ -1412,6 +1517,7 @@ async function resetCurrentAccountData() {
       updatedAt: serverTimestamp()
     });
   }
+  setToast("This login data was reset");
   render();
 }
 
@@ -1426,6 +1532,7 @@ async function saveCustomer() {
   state.data.customers = [customer, ...state.data.customers];
   state.modal = null;
   await persist();
+  setToast("Guest saved");
   render();
 }
 
@@ -1491,6 +1598,7 @@ async function sendPhoneOtp() {
     state.otpConfirmation = await signInWithPhoneNumber(state.auth, phone, verifier);
     state.otpSent = true;
     state.authBusy = false;
+    setToast("OTP sent");
     render();
   } catch (error) {
     resetRecaptcha();
@@ -1626,6 +1734,7 @@ async function renewSubscription() {
   const renewalStart = new Date(current.expiresAt) > new Date() ? new Date(current.expiresAt) : new Date();
   state.data.subscription = annualSubscription(renewalStart);
   await persist();
+  setToast("Annual plan updated");
   render();
 }
 

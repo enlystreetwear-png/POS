@@ -256,6 +256,10 @@ button {
   background: #eef2f7;
 }
 
+.status-pill [data-lucide="loader-circle"] {
+  animation: spin 1s linear infinite;
+}
+
 .grid {
   display: grid;
   gap: 16px;
@@ -366,6 +370,10 @@ textarea:focus {
 
 .search {
   min-width: min(320px, 100%);
+}
+
+.report-search {
+  min-width: min(240px, 100%);
 }
 
 .button {
@@ -733,6 +741,33 @@ textarea:focus {
 
 .action-modal {
   width: min(860px, 100%);
+}
+
+.toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 70;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.toast.error {
+  color: var(--danger);
+  background: #eef2f7;
+}
+
+.toast span {
+  flex: 1;
+  font-weight: 700;
 }
 
 .receipt {
@@ -1119,6 +1154,18 @@ textarea:focus {
   line-height: 1.35;
 }
 
+.ops-card em,
+.setting-card em {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f4f5f7;
+  color: var(--brand);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .setting-card > svg:last-child {
   margin-left: auto;
 }
@@ -1316,7 +1363,9 @@ textarea:focus {
   }
 
   .receipt,
-  .receipt * {
+  .receipt *,
+  body.report-printing .report-content,
+  body.report-printing .report-content * {
     visibility: visible;
   }
 
@@ -1325,5 +1374,18 @@ textarea:focus {
     inset: 0 auto auto 0;
     width: 100%;
     border: 0;
+  }
+
+  body.report-printing .report-content {
+    position: fixed;
+    inset: 0;
+    overflow: visible;
+    box-shadow: none;
+    border: 0;
+  }
+
+  body.report-printing .report-content .toolbar,
+  body.report-printing .report-menu {
+    display: none;
   }
 }
