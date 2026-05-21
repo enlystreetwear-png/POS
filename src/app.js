@@ -618,7 +618,7 @@ function renderPOS() {
           ${filtered.map(renderProductCard).join("") || `<div class="empty">No products found</div>`}
         </div>
       </div>
-      <aside class="panel">
+      <aside class="panel bill-panel">
         <div class="panel-header"><h3>${table?.name || "Current bill"}</h3><button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button></div>
         <div class="cart-list">${cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to this table bill</div>`}</div>
         <div class="form-grid" style="margin-top:14px">
@@ -627,10 +627,12 @@ function renderPOS() {
           <div class="field"><label>Discount</label><input class="input" id="discount" type="number" value="0" min="0"></div>
           <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0"></div>
         </div>
-        ${renderSummary()}
-        <div class="bill-actions">
-          <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} Save KOT</button>
-          <button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Completing..." : "Complete billing"}</button>
+        <div class="bill-footer">
+          ${renderSummary()}
+          <div class="bill-actions">
+            <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} Save KOT</button>
+            <button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Completing..." : "Complete billing"}</button>
+          </div>
         </div>
       </aside>
     </section>
@@ -1106,6 +1108,7 @@ function renderModal() {
   if (state.modal.type === "product") return renderProductModal(state.modal.product);
   if (state.modal.type === "customer") return renderCustomerModal();
   if (state.modal.type === "receipt") return renderReceiptModal(state.modal.sale);
+  if (state.modal.type === "kot") return renderKotModal(state.modal.kot);
   if (state.modal.type === "action") return renderActionModal(state.modal);
   return "";
 }
@@ -1165,6 +1168,17 @@ function renderReceiptModal(sale) {
       <section class="modal">
         <div class="panel-header"><h3>Receipt</h3><div class="toolbar"><button class="button secondary" id="print-receipt">${icon("printer")} Print</button><button class="icon-button" data-close title="Close">${icon("x")}</button></div></div>
         ${receiptMarkup(sale)}
+      </section>
+    </div>
+  `;
+}
+
+function renderKotModal(kot) {
+  return `
+    <div class="modal-backdrop">
+      <section class="modal">
+        <div class="panel-header"><h3>Kitchen Order Ticket</h3><div class="toolbar"><button class="button secondary" id="print-kot">${icon("printer")} Print KOT</button><button class="icon-button" data-close title="Close">${icon("x")}</button></div></div>
+        ${kotMarkup(kot)}
       </section>
     </div>
   `;
@@ -1304,7 +1318,7 @@ function renderKotCards(openTables) {
   const activeKots = (state.data.kots || []).filter((kot) => kot.status !== "billed");
   if (!activeKots.length && !openTables.length) return `<div class="empty">No KOTs waiting</div>`;
   const rows = activeKots.length
-    ? activeKots.map((kot) => `<div class="sale-row"><div><h4>${kot.kotNo} • ${kot.tableName}</h4><p>${kot.items.map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><strong>${kot.status}</strong></div>`)
+    ? activeKots.map((kot) => `<div class="sale-row"><div><h4>${kot.kotNo} • ${kot.tableName}</h4><p>${kot.items.map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><div class="row-actions"><strong>${kot.status}</strong><button class="icon-button" data-kot="${kot.id}" title="Print KOT">${icon("printer")}</button></div></div>`)
     : openTables.map((table) => `<div class="sale-row"><div><h4>KOT • ${table.name}</h4><p>${(state.data.openBills[table.id] || []).map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><strong>${money(tableTotal(table.id))}</strong></div>`);
   return `<div class="sale-list">${rows.join("")}</div>`;
 }
@@ -1327,6 +1341,21 @@ function receiptMarkup(sale) {
       <hr>
       <p>Subtotal: ${money(sale.subtotal)}<br>Discount: ${money(sale.discount)}<br>Tax: ${money(sale.tax)}<br><strong>Total: ${money(sale.total)}</strong><br>Paid: ${money(sale.paid)}<br>Change: ${money(Math.max(0, sale.paid - sale.total))}<br>Payment: ${sale.paymentMethod}</p>
       <small>Thank you for your purchase</small>
+    </div>
+  `;
+}
+
+function kotMarkup(kot) {
+  const settings = state.data.settings;
+  return `
+    <div class="receipt kot-print">
+      <h3>${settings.shopName}</h3>
+      <small>${settings.address || ""}<br>${settings.phone || ""}</small>
+      <p>KOT: ${kot.kotNo}<br>Date: ${new Date(kot.createdAt).toLocaleString()}<br>Table: ${kot.tableName}<br>Status: ${kot.status}</p>
+      <hr>
+      ${kot.items.map((item) => `<p><strong>${item.qty} x ${item.name}</strong>${item.notes ? `<br><small>${item.notes}</small>` : ""}</p>`).join("")}
+      <hr>
+      <small>Kitchen copy</small>
     </div>
   `;
 }
@@ -1417,8 +1446,15 @@ function bindEvents() {
     state.modal = { type: "receipt", sale: state.data.sales.find((sale) => sale.id === button.dataset.receipt) };
     render();
   }));
+  document.querySelectorAll("[data-kot]").forEach((button) => button.addEventListener("click", () => {
+    const kot = (state.data.kots || []).find((item) => item.id === button.dataset.kot);
+    if (!kot) return;
+    state.modal = { type: "kot", kot };
+    render();
+  }));
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => { state.modal = null; render(); }));
   document.querySelector("#print-receipt")?.addEventListener("click", () => window.print());
+  document.querySelector("#print-kot")?.addEventListener("click", () => window.print());
   document.querySelector("#close-toast")?.addEventListener("click", () => {
     state.toast = null;
     render();
@@ -1630,6 +1666,7 @@ async function saveKot() {
   };
   state.data.kots = [kot, ...(state.data.kots || [])].slice(0, 100);
   await persistSafely(`${kot.kotNo} sent to kitchen`, "KOT saved locally. Cloud sync failed.");
+  state.modal = { type: "kot", kot };
   render();
 }
 

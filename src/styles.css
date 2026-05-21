@@ -653,6 +653,37 @@ textarea:focus {
   width: 100%;
 }
 
+.bill-panel {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bill-panel .cart-list {
+  min-height: 118px;
+  max-height: min(40vh, 360px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.bill-footer {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -14px 22px rgba(23, 32, 31, 0.06);
+  z-index: 2;
+}
+
+.bill-footer .summary {
+  margin-top: 0;
+}
+
 .table-context {
   justify-content: space-between;
   gap: 14px;
@@ -774,6 +805,12 @@ textarea:focus {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(23, 32, 31, 0.04);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .cart-row h4,
@@ -1472,6 +1509,22 @@ textarea:focus {
 
   .pos-grid {
     grid-template-columns: 1fr;
+  }
+
+  .bill-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .bill-panel .cart-list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .bill-footer {
+    position: sticky;
+    bottom: 78px;
   }
 
   .dashboard-grid {
