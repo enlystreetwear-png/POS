@@ -731,6 +731,10 @@ textarea:focus {
   overflow: auto;
 }
 
+.action-modal {
+  width: min(860px, 100%);
+}
+
 .receipt {
   width: min(380px, 100%);
   margin: 0 auto;
@@ -1117,6 +1121,29 @@ textarea:focus {
 
 .setting-card > svg:last-child {
   margin-left: auto;
+}
+
+.action-metrics {
+  margin-bottom: 16px;
+}
+
+.check-row {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
 }
 
 .report-shell {

@@ -113,6 +113,7 @@ function normalizeData(data) {
     ...freshSeed,
     ...data,
     settings,
+    modules: data.modules || {},
     subscription: { ...freshSeed.subscription, ...(data.subscription || {}) },
     tables: data.tables?.length ? data.tables : freshSeed.tables,
     openBills: data.openBills || {},
@@ -757,7 +758,7 @@ function renderOperations() {
     <section class="panel ops-panel">
       <div class="panel-header"><h3>${title}</h3></div>
       <div class="ops-grid">${items.map(([label, iconName, text]) => `
-        <button class="ops-card">
+        <button class="ops-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">
           ${icon(iconName, 22)}
           <span><strong>${label}</strong><small>${text}</small></span>
         </button>
@@ -918,7 +919,7 @@ function renderOutletSettings() {
       <section class="panel settings-panel">
         <div class="panel-header"><h3>${title}</h3></div>
         <div class="settings-grid">${items.map(([label, iconName, text]) => `
-          <button class="setting-card">${icon(iconName, 22)}<span><strong>${label}</strong><small>${text}</small></span>${icon("arrow-right", 18)}</button>
+          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">${icon(iconName, 22)}<span><strong>${label}</strong><small>${text}</small></span>${icon("arrow-right", 18)}</button>
         `).join("")}</div>
       </section>
     `).join("")}
@@ -955,7 +956,12 @@ function renderModal() {
   if (state.modal.type === "product") return renderProductModal(state.modal.product);
   if (state.modal.type === "customer") return renderCustomerModal();
   if (state.modal.type === "receipt") return renderReceiptModal(state.modal.sale);
+  if (state.modal.type === "action") return renderActionModal(state.modal);
   return "";
+}
+
+function actionKey(label = "") {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function renderProductModal(product = {}) {
@@ -1009,6 +1015,92 @@ function renderReceiptModal(sale) {
   `;
 }
 
+function renderActionModal({ action, label }) {
+  const details = actionDetails(action, label);
+  return `
+    <div class="modal-backdrop">
+      <section class="modal action-modal">
+        <div class="panel-header"><h3>${details.title}</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
+        ${details.body}
+        ${details.footer || ""}
+      </section>
+    </div>
+  `;
+}
+
+function actionDetails(action, label) {
+  const totals = salesTotals();
+  const openTables = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length);
+  const settings = state.data.modules?.[action] || {};
+  const configForm = (fields) => `
+    <div class="form-grid">
+      ${fields.map((field) => moduleField(action, field, settings[field.key] ?? field.value ?? "", field.type || "text")).join("")}
+    </div>
+    <button class="button" id="save-module-settings" data-action="${action}" style="margin-top:14px">${icon("save")} Save</button>
+  `;
+  const simple = (title, body) => ({ title, body });
+  const actionMap = {
+    "online-orders": simple("Online Orders", `${metricStrip([["Today orders", totals.sales.length], ["Open online orders", 0], ["Ready to accept", "Yes"]])}<p class="muted">Online channel controls are ready. Connect Swiggy, Zomato, website orders, or WhatsApp API when you add those integrations.</p>`),
+    "kots": simple("Kitchen Order Tickets", `${renderKotCards(openTables)}${configForm([{ key: "autoPrintKot", label: "Auto print KOT", type: "checkbox", value: true }, { key: "kotCounter", label: "KOT counter name", value: "Kitchen" }])}`),
+    "due-payment": simple("Due Payments", reportTable(["Invoice", "Customer", "Amount", "Status"], duePaymentRows())),
+    "live-view": simple("Live View", `${metricStrip([["Running tables", openTables.length], ["Open items", openTables.reduce((sum, table) => sum + (state.data.openBills[table.id] || []).length, 0)], ["Today revenue", money(totals.total)]])}${renderOpenTableList(openTables)}`),
+    "bill-kot-print": simple("Bill / KOT Print", configForm([{ key: "billCopies", label: "Bill copies", type: "number", value: 1 }, { key: "kotCopies", label: "KOT copies", type: "number", value: 1 }, { key: "printerName", label: "Printer name", value: "Default printer" }])),
+    "custom-order-status": simple("Custom Order Status", configForm([{ key: "statusOne", label: "Status 1", value: "Food ready" }, { key: "statusTwo", label: "Status 2", value: "Dispatch" }, { key: "statusThree", label: "Status 3", value: "Delivered" }])),
+    "cash-flow": simple("Cash Flow", reportTable(["Type", "Amount"], [["Cash sales", money(totals.total)], ["Opening cash", money(Number(settings.openingCash || 0))], ["Expected drawer", money(totals.total + Number(settings.openingCash || 0))]]) + configForm([{ key: "openingCash", label: "Opening cash", type: "number", value: 0 }])),
+    "expense": simple("Expense", configForm([{ key: "lastExpenseTitle", label: "Expense name", value: "" }, { key: "lastExpenseAmount", label: "Amount", type: "number", value: 0 }, { key: "expenseNote", label: "Note", value: "" }])),
+    "withdrawal": simple("Withdrawal", configForm([{ key: "withdrawalAmount", label: "Withdrawal amount", type: "number", value: 0 }, { key: "withdrawalReason", label: "Reason", value: "Owner withdrawal" }])),
+    "cash-top-up": simple("Cash Top-Up", configForm([{ key: "topUpAmount", label: "Top-up amount", type: "number", value: 0 }, { key: "topUpSource", label: "Source", value: "Owner cash" }])),
+    "currency-conversion": simple("Currency Conversion", configForm([{ key: "currencyCode", label: "Currency code", value: "INR" }, { key: "exchangeRate", label: "Exchange rate", type: "number", value: 1 }])),
+    "tax": simple("Tax", configForm([{ key: "taxRate", label: "Tax rate %", type: "number", value: state.data.settings.taxRate }, { key: "gstMode", label: "GST mode", value: "CGST + SGST" }, { key: "taxIncluded", label: "Tax included in menu price", type: "checkbox", value: false }])),
+    "discount": simple("Discount", configForm([{ key: "maxDiscount", label: "Maximum discount", type: "number", value: 0 }, { key: "managerApproval", label: "Manager approval required", type: "checkbox", value: true }])),
+    "table-reservation": simple("Table Reservation", configForm([{ key: "reservationWindow", label: "Reservation window minutes", type: "number", value: 60 }, { key: "reservationPhoneRequired", label: "Phone required", type: "checkbox", value: true }])),
+    "feedback": simple("Feedback", configForm([{ key: "feedbackLink", label: "Feedback link", value: "" }, { key: "showFeedbackOnReceipt", label: "Show on receipt", type: "checkbox", value: true }])),
+    "led-display": simple("LED Display", configForm([{ key: "displayName", label: "Display name", value: "Kitchen display" }, { key: "showToken", label: "Show token numbers", type: "checkbox", value: true }])),
+    "dual-screen": simple("Dual Screen", configForm([{ key: "customerDisplay", label: "Customer display enabled", type: "checkbox", value: false }, { key: "displayMessage", label: "Display message", value: "Thank you" }])),
+    "billing-user-profile": simple("Billing User Profile", configForm([{ key: "cashierName", label: "Cashier name", value: "cashier" }, { key: "role", label: "Role", value: "Owner" }])),
+    "alerts": simple("Alerts", configForm([{ key: "lowStockAlert", label: "Low stock alert qty", type: "number", value: 5 }, { key: "dailySummary", label: "Daily summary alert", type: "checkbox", value: true }])),
+    "help": simple("Help", `<p class="muted">Support checklist for PondyPOS.</p>${reportTable(["Topic", "What to check"], [["Login", "Firebase Phone and Google providers enabled"], ["Billing", "Select table, add item, complete billing"], ["Sync", "Firestore rules allow only tenants/{uid}"], ["Deploy", "Push GitHub and redeploy Vercel"]])}`),
+    "display": simple("Display Settings", configForm([{ key: "compactTables", label: "Compact table view", type: "checkbox", value: false }, { key: "showStockOnCards", label: "Show stock on menu cards", type: "checkbox", value: true }])),
+    "calculations": simple("Calculation Settings", configForm([{ key: "serviceCharge", label: "Service charge %", type: "number", value: 0 }, { key: "roundOff", label: "Round off bills", type: "checkbox", value: true }])),
+    "linked-services": simple("Linked Services", configForm([{ key: "whatsappNumber", label: "WhatsApp number", value: "" }, { key: "deliveryPartner", label: "Delivery partner", value: "" }])),
+    "print": simple("Print Settings", configForm([{ key: "paperSize", label: "Paper size", value: "80mm" }, { key: "showGstin", label: "Show GSTIN on receipt", type: "checkbox", value: true }])),
+    "customer": simple("Customer Settings", configForm([{ key: "phoneRequired", label: "Phone required for guests", type: "checkbox", value: false }, { key: "allowCredit", label: "Allow credit bills", type: "checkbox", value: true }])),
+    "online-advance-order-configuration": simple("Online / Advance Order Configuration", configForm([{ key: "autoAccept", label: "Auto accept orders", type: "checkbox", value: false }, { key: "advanceOrderHours", label: "Advance order hours", type: "number", value: 24 }])),
+    "billing-system": simple("Billing System", configForm([{ key: "invoicePrefix", label: "Invoice prefix", value: state.data.settings.invoicePrefix }, { key: "counterName", label: "Counter name", value: "Billing Station" }])),
+    "language-profiles": simple("Language Profiles", configForm([{ key: "language", label: "Primary language", value: "English" }, { key: "receiptLanguage", label: "Receipt language", value: "English" }])),
+    "manual-sync": simple("Manual Sync", `${metricStrip([["Cloud status", state.user ? "Synced" : "Local"], ["Data owner", currentEmail()], ["Last action", "Sync complete"]])}<p class="muted">Your latest local data was pushed to Firebase, then the latest cloud copy was pulled back for this login.</p>`)
+  };
+  return actionMap[action] || simple(label, `<p class="muted">${label} is connected to this workspace.</p>`);
+}
+
+function moduleField(action, field, value, type = "text") {
+  if (type === "checkbox") {
+    const checked = value === true || value === "true" ? "checked" : "";
+    return `<label class="check-row"><input type="checkbox" data-module-field="${field.key}" ${checked}> <span>${field.label}</span></label>`;
+  }
+  return `<div class="field"><label>${field.label}</label><input class="input" data-module-field="${field.key}" type="${type}" value="${escapeAttr(value)}"></div>`;
+}
+
+function metricStrip(items) {
+  return `<div class="grid dashboard-grid action-metrics">${items.map(([label, value]) => metric(label, value, "circle-dot")).join("")}</div>`;
+}
+
+function renderOpenTableList(openTables) {
+  if (!openTables.length) return `<div class="empty">No running tables right now</div>`;
+  return `<div class="sale-list">${openTables.map((table) => `<div class="sale-row"><div><h4>${table.name}</h4><p>${(state.data.openBills[table.id] || []).length} items</p></div><strong>${money(tableTotal(table.id))}</strong></div>`).join("")}</div>`;
+}
+
+function renderKotCards(openTables) {
+  if (!openTables.length) return `<div class="empty">No KOTs waiting</div>`;
+  return `<div class="sale-list">${openTables.map((table) => `<div class="sale-row"><div><h4>KOT • ${table.name}</h4><p>${(state.data.openBills[table.id] || []).map((item) => `${item.qty} x ${item.name}`).join(", ")}</p></div><strong>${money(tableTotal(table.id))}</strong></div>`).join("")}</div>`;
+}
+
+function duePaymentRows() {
+  const dues = state.data.sales.filter((sale) => sale.paymentMethod === "Credit" || Number(sale.paid || 0) < Number(sale.total || 0));
+  if (!dues.length) return [["-", "No pending dues", money(0), "Clear"]];
+  return dues.map((sale) => [sale.invoiceNo, sale.customerName, money(Math.max(0, sale.total - sale.paid)), "Pending"]);
+}
+
 function receiptMarkup(sale) {
   const settings = state.data.settings;
   return `
@@ -1039,6 +1131,9 @@ function bindEvents() {
       state.reportKey = button.dataset.report;
       render();
     });
+  });
+  document.querySelectorAll("[data-action][data-action-label]").forEach((button) => {
+    button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.actionLabel));
   });
   document.querySelectorAll("[data-table]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1075,6 +1170,7 @@ function bindEvents() {
   }));
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
+  document.querySelector("#save-module-settings")?.addEventListener("click", saveModuleSettings);
   document.querySelector("#reset-account-data")?.addEventListener("click", resetCurrentAccountData);
   document.querySelector("#new-customer")?.addEventListener("click", () => { state.modal = { type: "customer" }; render(); });
   document.querySelector("#save-customer")?.addEventListener("click", saveCustomer);
@@ -1101,6 +1197,51 @@ function bindEvents() {
     resetRecaptcha();
     render();
   });
+}
+
+async function handleAction(action, label) {
+  const viewActions = {
+    orders: "sales",
+    "billing-screen": "pos",
+    table: "pos",
+    menu: "products",
+    inventory: "products",
+    customers: "customers",
+    "service-renewal": "subscription"
+  };
+  const reportActions = {
+    "cash-flow": "sales",
+    "due-payment": "order"
+  };
+  if (viewActions[action]) {
+    setView(viewActions[action]);
+    return;
+  }
+  if (reportActions[action]) state.reportKey = reportActions[action];
+  if (action === "manual-sync") {
+    await manualSync();
+    return;
+  }
+  state.modal = { type: "action", action, label };
+  render();
+}
+
+async function manualSync() {
+  state.authError = "";
+  try {
+    await persist();
+    if (state.user) await pullCloudData();
+    state.modal = {
+      type: "action",
+      action: "manual-sync",
+      label: "Manual Sync"
+    };
+    render();
+  } catch (error) {
+    console.warn("Manual sync failed", error);
+    state.authError = "Manual sync failed. Check Firebase rules and internet connection.";
+    render();
+  }
 }
 
 function updateSummaryOnly() {
@@ -1227,6 +1368,31 @@ async function saveSettings() {
     address: document.querySelector("#setting-address").value.trim()
   };
   await persist();
+  render();
+}
+
+async function saveModuleSettings() {
+  const button = document.querySelector("#save-module-settings");
+  const action = button?.dataset.action;
+  if (!action) return;
+  const values = {};
+  document.querySelectorAll("[data-module-field]").forEach((field) => {
+    values[field.dataset.moduleField] = field.type === "checkbox" ? field.checked : field.value;
+  });
+  state.data.modules ||= {};
+  state.data.modules[action] = {
+    ...(state.data.modules[action] || {}),
+    ...values,
+    updatedAt: new Date().toISOString()
+  };
+  if (action === "billing-system" && values.invoicePrefix) {
+    state.data.settings.invoicePrefix = String(values.invoicePrefix).trim() || state.data.settings.invoicePrefix;
+  }
+  if (action === "tax" && values.taxRate) {
+    state.data.settings.taxRate = Number(values.taxRate || state.data.settings.taxRate);
+  }
+  await persist();
+  state.modal = null;
   render();
 }
 
