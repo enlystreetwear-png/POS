@@ -65,6 +65,9 @@ const state = {
   db: null,
   storage: null,
   auth: null,
+  recaptchaVerifier: null,
+  otpSent: false,
+  otpConfirmation: null,
   localSession: readLocalSession(),
   tenantId: "demo",
   data: readLocal(),
@@ -126,7 +129,8 @@ function readLocalSession() {
   migrateStorageKey("countercloud-session", "pondypos-session");
   try {
     const savedSession = JSON.parse(localStorage.getItem("pondypos-session")) || null;
-    if (savedSession) return savedSession;
+    if (savedSession?.firebase) return savedSession;
+    if (savedSession) localStorage.removeItem("pondypos-session");
     const pendingGoogle = JSON.parse(localStorage.getItem(googleRedirectSessionKey)) || null;
     if (pendingGoogle?.expiresAt > Date.now()) {
       return {
@@ -236,7 +240,7 @@ function isAuthenticated() {
 }
 
 function currentEmail() {
-  return state.user?.email || state.localSession?.email || "Local account";
+  return state.user?.email || state.user?.phoneNumber || state.localSession?.email || state.localSession?.phone || "Phone account";
 }
 
 function getSubscription() {
@@ -292,6 +296,14 @@ function icon(name, size = 18) {
   return `<i data-lucide="${name}" style="width:${size}px;height:${size}px"></i>`;
 }
 
+function escapeAttr(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 function render() {
   app.innerHTML = !isAuthenticated() ? renderAuth() : renderShell();
   lucide.createIcons();
@@ -301,8 +313,7 @@ function render() {
 function renderAuth() {
   const waitingForFirebase = state.firebaseConfigured && !state.authReady;
   const authDisabled = state.authBusy || waitingForFirebase;
-  const loginText = state.authBusy ? "Signing in..." : "Sign in";
-  const createText = state.authBusy ? "Creating account..." : "Create account";
+  const otpText = state.authBusy ? (state.otpSent ? "Verifying..." : "Sending OTP...") : (state.otpSent ? "Verify OTP" : "Send OTP");
   const googleText = waitingForFirebase ? "Connecting to Firebase..." : state.authBusy ? "Redirecting to Google..." : "Continue with Google";
   return `
     <main class="auth">
@@ -326,14 +337,14 @@ function renderAuth() {
         </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
         ${waitingForFirebase ? `<div class="auth-loading">${icon("loader-circle")}<span>Connecting to Firebase. Login will be ready in a moment.</span></div>` : ""}
-        <h2>Sign in to your store</h2>
-        <p class="auth-note">New store owner? Use Create account first, then sign in later with the same email.</p>
-        <div class="field"><label>Email</label><input class="input" id="email" type="email" placeholder="owner@example.com"></div>
-        <div class="field"><label>Password</label><input class="input" id="password" type="password" placeholder="Minimum 6 characters"></div>
-        <button class="button" id="signin" ${authDisabled ? "disabled" : ""}>${icon("log-in")} ${loginText}</button>
-        <button class="button secondary" id="signup" ${authDisabled ? "disabled" : ""}>${icon("user-plus")} ${createText}</button>
+        <h2>Sign in with phone OTP</h2>
+        <p class="auth-note">Use your owner mobile number. Enter country code, or type a 10 digit India number and PondyPOS will add +91.</p>
+        <div class="field"><label>Phone number</label><input class="input" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" value="${escapeAttr(state.phoneNumber || "")}" ${state.otpSent ? "disabled" : ""}></div>
+        ${state.otpSent ? `<div class="field"><label>OTP code</label><input class="input" id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit OTP" maxlength="8"></div>` : ""}
+        <div id="recaptcha-container"></div>
+        <button class="button" id="${state.otpSent ? "verify-otp" : "send-otp"}" ${authDisabled ? "disabled" : ""}>${icon(state.otpSent ? "badge-check" : "smartphone")} ${otpText}</button>
+        ${state.otpSent ? `<button class="button secondary" id="change-phone" ${state.authBusy ? "disabled" : ""}>${icon("rotate-ccw")} Change phone number</button>` : ""}
         <button class="button google" id="google-signin" ${authDisabled ? "disabled" : ""}>${icon("chrome")} ${googleText}</button>
-        <button class="ghost-button button secondary" id="demo-mode">${icon("monitor-smartphone")} Try POS demo</button>
       </section>
     </main>
   `;
@@ -1055,19 +1066,18 @@ function bindEvents() {
   }));
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => { state.modal = null; render(); }));
   document.querySelector("#print-receipt")?.addEventListener("click", () => window.print());
-  document.querySelector("#signin")?.addEventListener("click", () => authAction("signin"));
-  document.querySelector("#signup")?.addEventListener("click", () => authAction("signup"));
+  document.querySelector("#send-otp")?.addEventListener("click", sendPhoneOtp);
+  document.querySelector("#verify-otp")?.addEventListener("click", verifyPhoneOtp);
+  document.querySelector("#change-phone")?.addEventListener("click", resetPhoneOtp);
   document.querySelector("#google-signin")?.addEventListener("click", googleSignIn);
-  document.querySelector("#demo-mode")?.addEventListener("click", () => {
-    state.localSession = { email: "demo@pondypos.local", demo: true };
-    localStorage.setItem("pondypos-session", JSON.stringify(state.localSession));
-    render();
-  });
   document.querySelector("#signout")?.addEventListener("click", async () => {
     if (state.user) await state.auth.signOut();
     state.localSession = null;
+    state.otpSent = false;
+    state.otpConfirmation = null;
     localStorage.removeItem("pondypos-session");
     localStorage.removeItem(googleRedirectSessionKey);
+    resetRecaptcha();
     render();
   });
 }
@@ -1201,37 +1211,98 @@ async function saveCustomer() {
   render();
 }
 
-async function authAction(action) {
+function normalizePhoneNumber(value) {
+  const compact = String(value || "").replace(/[\s()-]/g, "");
+  if (/^\d{10}$/.test(compact)) return `+91${compact}`;
+  return compact;
+}
+
+function ensureFirebaseAuthReady(message) {
+  if (state.firebaseConfigured && !state.cloudReady) {
+    state.authError = "Firebase is still connecting. Please try again in a moment.";
+    render();
+    return false;
+  }
+  if (!state.firebaseConfigured) {
+    state.authError = message;
+    render();
+    return false;
+  }
+  return true;
+}
+
+function ensureRecaptcha() {
+  if (state.recaptchaVerifier) return state.recaptchaVerifier;
+  const container = document.querySelector("#recaptcha-container");
+  if (!container) throw new Error("OTP security check could not load. Refresh the page and try again.");
+  const { RecaptchaVerifier } = state.firebase.authMod;
+  state.recaptchaVerifier = new RecaptchaVerifier(state.auth, "recaptcha-container", {
+    size: "invisible",
+    callback: () => {
+      state.authError = "";
+    }
+  });
+  return state.recaptchaVerifier;
+}
+
+function resetRecaptcha() {
+  try {
+    state.recaptchaVerifier?.clear?.();
+  } catch (error) {
+    console.warn("Could not clear reCAPTCHA", error);
+  }
+  state.recaptchaVerifier = null;
+}
+
+async function sendPhoneOtp() {
   if (state.authBusy) return;
-  const email = document.querySelector("#email").value.trim();
-  const password = document.querySelector("#password").value;
+  const phone = normalizePhoneNumber(document.querySelector("#phone")?.value);
   state.authError = "";
-  if (!email || password.length < 6) {
-    state.authError = "Enter an email and a password of at least 6 characters.";
+  if (!/^\+\d{10,15}$/.test(phone)) {
+    state.authError = "Enter a valid mobile number with country code, like +91 98765 43210.";
     render();
     return;
   }
-  if (state.firebaseConfigured && !state.cloudReady) {
-    state.authError = "Firebase is still connecting. Please try again in a moment.";
+  if (!ensureFirebaseAuthReady("Add Firebase config first, then enable Phone sign-in in Firebase Authentication.")) return;
+  state.phoneNumber = phone;
+  state.authBusy = true;
+  render();
+  const { signInWithPhoneNumber } = state.firebase.authMod;
+  try {
+    const verifier = ensureRecaptcha();
+    state.otpConfirmation = await signInWithPhoneNumber(state.auth, phone, verifier);
+    state.otpSent = true;
+    state.authBusy = false;
+    render();
+  } catch (error) {
+    resetRecaptcha();
+    state.authBusy = false;
+    state.authError = friendlyAuthError(error);
+    render();
+  }
+}
+
+async function verifyPhoneOtp() {
+  if (state.authBusy) return;
+  const code = document.querySelector("#otp")?.value.trim();
+  state.authError = "";
+  if (!state.otpConfirmation || !state.otpSent) {
+    state.authError = "Send the OTP first, then enter the code.";
+    render();
+    return;
+  }
+  if (!/^\d{4,8}$/.test(code || "")) {
+    state.authError = "Enter the OTP code you received on your phone.";
     render();
     return;
   }
   state.authBusy = true;
   render();
-  if (!state.firebaseConfigured) {
-    localAuthAction(action, email, password);
-    return;
-  }
-  const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = state.firebase.authMod;
   try {
-    if (action === "signin") {
-      const credential = await signInWithEmailAndPassword(state.auth, email, password);
-      await finishSignedInUser(credential.user);
-    } else {
-      const credential = await createUserWithEmailAndPassword(state.auth, email, password);
-      await finishSignedInUser(credential.user);
-      await renewSubscription();
-    }
+    const credential = await state.otpConfirmation.confirm(code);
+    state.otpSent = false;
+    state.otpConfirmation = null;
+    await finishSignedInUser(credential.user);
   } catch (error) {
     state.authBusy = false;
     state.authError = friendlyAuthError(error);
@@ -1239,19 +1310,18 @@ async function authAction(action) {
   }
 }
 
+function resetPhoneOtp() {
+  state.otpSent = false;
+  state.otpConfirmation = null;
+  state.authError = "";
+  resetRecaptcha();
+  render();
+}
+
 async function googleSignIn() {
   if (state.authBusy) return;
   state.authError = "";
-  if (state.firebaseConfigured && !state.cloudReady) {
-    state.authError = "Firebase is still connecting. Please try Google again in a moment.";
-    render();
-    return;
-  }
-  if (!state.firebaseConfigured) {
-    state.authError = "Add Firebase config first, then enable Google sign-in in Firebase Authentication.";
-    render();
-    return;
-  }
+  if (!ensureFirebaseAuthReady("Add Firebase config first, then enable Google sign-in in Firebase Authentication.")) return;
   state.authBusy = true;
   render();
   const { GoogleAuthProvider, signInWithRedirect } = state.firebase.authMod;
@@ -1285,7 +1355,8 @@ async function finishSignedInUser(user) {
 
 function rememberSignedInUser(user) {
   state.localSession = {
-    email: user?.email || "firebase-user@pondypos.local",
+    email: user?.email || "",
+    phone: user?.phoneNumber || "",
     firebaseUid: user?.uid || "",
     firebase: true
   };
@@ -1300,40 +1371,23 @@ function rememberGoogleRedirectStart() {
   }));
 }
 
-function localAuthAction(action, email, password) {
-  migrateStorageKey("countercloud-users", "pondypos-users");
-  const users = JSON.parse(localStorage.getItem("pondypos-users") || "{}");
-  if (action === "signup") {
-    users[email] = { password, createdAt: new Date().toISOString() };
-    localStorage.setItem("pondypos-users", JSON.stringify(users));
-    state.data.subscription = annualSubscription();
-    writeLocal();
-  } else if (!users[email] || users[email].password !== password) {
-    state.authError = "Account not found. Create an account first, or check the password.";
-    render();
-    return;
-  }
-  state.localSession = { email };
-  localStorage.setItem("pondypos-session", JSON.stringify(state.localSession));
-  state.authBusy = false;
-  render();
-}
-
 function friendlyAuthError(error) {
   const code = error?.code || "";
   const messages = {
-    "auth/admin-restricted-operation": "Email/password sign-up is disabled. In Firebase Authentication, enable Email/Password provider.",
     "auth/configuration-not-found": "Firebase Authentication is not set up yet. Open Firebase Authentication and enable your sign-in providers.",
-    "auth/email-already-in-use": "This email already has an account. Use Sign in instead of Create account.",
-    "auth/invalid-credential": "Wrong email or password. If this is a new account, click Create account first.",
-    "auth/invalid-email": "Enter a valid email address.",
-    "auth/internal-error": "Google login failed inside Firebase. I switched the app to redirect login; if this continues, enable Google provider and add localhost in Firebase authorized domains.",
-    "auth/operation-not-allowed": "This login provider is disabled in Firebase Authentication. Enable Email/Password or Google provider.",
+    "auth/captcha-check-failed": "OTP security check failed. Refresh the page and try again.",
+    "auth/code-expired": "This OTP expired. Send a new OTP and try again.",
+    "auth/internal-error": "Firebase login failed internally. Enable Phone and Google providers, then add localhost and your Vercel domain in Firebase authorized domains.",
+    "auth/invalid-app-credential": "Firebase could not verify this app for phone login. Add localhost and your Vercel domain in Firebase authorized domains.",
+    "auth/invalid-phone-number": "Enter a valid phone number with country code.",
+    "auth/invalid-verification-code": "That OTP code is not correct. Check the SMS and try again.",
+    "auth/missing-phone-number": "Enter your mobile number first.",
+    "auth/operation-not-allowed": "This login provider is disabled in Firebase Authentication. Enable Phone and Google providers.",
     "auth/popup-blocked": "The browser blocked the Google popup. Allow popups or try again.",
     "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",
+    "auth/quota-exceeded": "Firebase OTP limit is reached for now. Try again later or add test phone numbers in Firebase.",
+    "auth/too-many-requests": "Too many OTP attempts. Please wait a few minutes and try again.",
     "auth/unauthorized-domain": "This domain is not authorized in Firebase. Add localhost and your Vercel domain in Authentication settings.",
-    "auth/user-not-found": "Account not found. Click Create account first.",
-    "auth/wrong-password": "Wrong password. Please try again."
   };
   return messages[code] || error?.message || "Login failed. Check Firebase Authentication settings.";
 }
