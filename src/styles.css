@@ -656,22 +656,30 @@ textarea:focus {
 .bill-panel {
   position: sticky;
   top: 16px;
-  max-height: calc(100vh - 112px);
+  height: min(680px, calc(100dvh - 190px));
+  min-height: 500px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.bill-panel .cart-list {
-  min-height: 118px;
-  max-height: min(40vh, 360px);
+.bill-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding-right: 4px;
 }
 
+.bill-panel .cart-list {
+  min-height: 0;
+}
+
+.bill-form {
+  margin-top: 14px;
+}
+
 .bill-footer {
-  position: sticky;
-  bottom: 0;
+  flex: 0 0 auto;
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
@@ -1513,13 +1521,15 @@ textarea:focus {
 
   .bill-panel {
     position: static;
+    height: auto;
     max-height: none;
+    min-height: 0;
     overflow: visible;
   }
 
-  .bill-panel .cart-list {
-    max-height: none;
+  .bill-scroll {
     overflow: visible;
+    padding-right: 0;
   }
 
   .bill-footer {
