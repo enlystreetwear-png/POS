@@ -1287,16 +1287,8 @@ function renderBackupPanel() {
   `;
 }
 
-function moduleIntro(title, text, items = []) {
-  return `
-    <div class="module-intro">
-      <div>
-        <strong>${title}</strong>
-        <p>${text}</p>
-      </div>
-      ${items.length ? `<div class="module-checklist">${items.map((item) => `<span>${icon("check", 15)} ${item}</span>`).join("")}</div>` : ""}
-    </div>
-  `;
+function moduleIntro() {
+  return "";
 }
 
 function moduleField(action, field, value, type = "text") {
