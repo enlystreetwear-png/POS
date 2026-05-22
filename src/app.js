@@ -1495,6 +1495,7 @@ function bindEvents() {
     const hadItems = Boolean(tableId && (state.data.openBills[tableId] || []).length);
     if (tableId) delete state.data.openBills[tableId];
     if (tableId) delete state.billDrafts?.[tableId];
+    if (tableId) syncActiveKotsWithTable(tableId, []);
     state.selectedTableId = "";
     setToast(hadItems ? "Table bill cleared" : "Returned to tables");
     render();
@@ -1752,9 +1753,27 @@ function changeQty(id, amount) {
   if (!item) return;
   item.qty += amount;
   const nextCart = cart.filter((cartItem) => cartItem.qty > 0);
+  const tableId = state.selectedTableId;
   setCurrentCart(nextCart);
+  syncActiveKotsWithTable(tableId, nextCart);
   persist();
   render();
+}
+
+function syncActiveKotsWithTable(tableId, cart) {
+  if (!tableId) return;
+  const nextItems = structuredClone(cart);
+  state.data.kots = (state.data.kots || [])
+    .map((kot) => {
+      if (kot.tableId !== tableId || kot.status === "billed") return kot;
+      return {
+        ...kot,
+        items: nextItems,
+        total: nextItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0),
+        updatedAt: new Date().toISOString()
+      };
+    })
+    .filter((kot) => kot.status === "billed" || kot.tableId !== tableId || kot.items.length);
 }
 
 async function backToTables() {
