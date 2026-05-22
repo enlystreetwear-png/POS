@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-table-clear";
+const assetVersion = "20260522-clear-cart-flow";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -1433,18 +1433,19 @@ function bindEvents() {
   document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1)));
   document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1)));
   document.querySelector("#clear-cart")?.addEventListener("click", async () => {
-    if (!currentCart().length) {
-      state.selectedTableId = "";
-      setToast("Returned to tables");
-      render();
-      return;
-    }
-    if (!confirm("Clear all items from this table bill?")) return;
-    setCurrentCart([]);
-    await persist();
+    const tableId = state.selectedTableId;
+    const hadItems = Boolean(tableId && (state.data.openBills[tableId] || []).length);
+    if (tableId) delete state.data.openBills[tableId];
     state.selectedTableId = "";
-    setToast("Table bill cleared");
+    setToast(hadItems ? "Table bill cleared" : "Returned to tables");
     render();
+    try {
+      await persist();
+    } catch (error) {
+      console.warn("Table cleared locally. Cloud sync failed.", error);
+      setToast("Table cleared locally. Cloud sync failed.", "error");
+      render();
+    }
   });
   document.querySelector("#discount")?.addEventListener("input", updateSummaryOnly);
   document.querySelector("#paid")?.addEventListener("input", updateSummaryOnly);
