@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-clear-cart-flow";
+const assetVersion = "20260522-auto-print";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -633,8 +633,8 @@ function renderPOS() {
         <div class="bill-footer">
           ${renderSummary()}
           <div class="bill-actions">
-            <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} Save KOT</button>
-            <button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Completing..." : "Complete billing"}</button>
+            <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
+            <button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : "BILL"}</button>
           </div>
         </div>
       </aside>
@@ -1115,6 +1115,10 @@ function renderModal() {
   if (state.modal.type === "kot") return renderKotModal(state.modal.kot);
   if (state.modal.type === "action") return renderActionModal(state.modal);
   return "";
+}
+
+function autoPrint() {
+  window.setTimeout(() => window.print(), 120);
 }
 
 function actionKey(label = "") {
@@ -1687,9 +1691,17 @@ async function saveKot() {
     createdAt: new Date().toISOString()
   };
   state.data.kots = [kot, ...(state.data.kots || [])].slice(0, 100);
-  await persistSafely(`${kot.kotNo} sent to kitchen`, "KOT saved locally. Cloud sync failed.");
   state.modal = { type: "kot", kot };
+  writeLocal();
   render();
+  autoPrint();
+  try {
+    await persist();
+    setToast(`${kot.kotNo} sent to kitchen`);
+  } catch (error) {
+    console.warn("KOT cloud sync failed", error);
+    setToast("KOT saved locally. Cloud sync failed.", "error");
+  }
 }
 
 async function addTable() {
@@ -1767,6 +1779,7 @@ async function checkout() {
   state.modal = { type: "receipt", sale };
   writeLocal();
   render();
+  autoPrint();
   try {
     await persist();
   } catch (error) {
