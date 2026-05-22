@@ -701,8 +701,8 @@ textarea:focus {
 .bill-panel {
   position: sticky;
   top: 16px;
-  height: min(680px, calc(100dvh - 190px));
-  min-height: 500px;
+  height: min(860px, calc(100dvh - 116px));
+  min-height: 640px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -710,7 +710,7 @@ textarea:focus {
 
 .bill-scroll {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 382px;
   overflow: auto;
   padding-right: 4px;
 }
@@ -725,9 +725,15 @@ textarea:focus {
 
 .bill-title-stack {
   display: grid;
-  gap: 10px;
+  grid-template-columns: max-content minmax(180px, 1fr);
+  gap: 12px;
+  align-items: end;
   min-width: 0;
   flex: 1;
+}
+
+.bill-title-stack h3 {
+  padding-bottom: 8px;
 }
 
 .bill-customer-field {
@@ -1627,6 +1633,7 @@ textarea:focus {
   }
 
   .bill-scroll {
+    min-height: 0;
     overflow: visible;
     padding-right: 0;
   }
@@ -1676,8 +1683,13 @@ textarea:focus {
 
   .table-summary-grid,
   .bill-actions,
+  .bill-title-stack,
   .table-manager {
     grid-template-columns: 1fr;
+  }
+
+  .bill-title-stack h3 {
+    padding-bottom: 0;
   }
 
   .table-context {

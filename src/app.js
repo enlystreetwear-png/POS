@@ -642,10 +642,10 @@ function renderPOS() {
               <span>Customer</span>
               <input class="input" id="bill-customer-name" list="customer-suggestions" value="${escapeAttr(draft.customerName)}" placeholder="Walk-in Customer">
             </label>
-            <datalist id="customer-suggestions">
-              ${state.data.customers.map((c) => `<option value="${escapeAttr(c.name)}"></option>`).join("")}
-            </datalist>
           </div>
+          <datalist id="customer-suggestions">
+            ${state.data.customers.map((c) => `<option value="${escapeAttr(c.name)}"></option>`).join("")}
+          </datalist>
           <button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button>
         </div>
         <div class="bill-scroll">
