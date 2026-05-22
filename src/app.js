@@ -85,6 +85,7 @@ const state = {
   billDrafts: {},
   search: "",
   selectedCategory: "All",
+  restoreMainScroll: null,
   modal: null,
   authError: "",
   lastReceipt: null,
@@ -372,6 +373,11 @@ function render() {
     search?.focus();
     search?.setSelectionRange(search.value.length, search.value.length);
     state.focusReportSearch = false;
+  }
+  if (typeof state.restoreMainScroll === "number") {
+    const main = document.querySelector(".main");
+    if (main) main.scrollTop = state.restoreMainScroll;
+    state.restoreMainScroll = null;
   }
 }
 
@@ -1732,6 +1738,7 @@ function updateSummaryOnly() {
 
 function addToCart(id) {
   if (!state.selectedTableId) return;
+  state.restoreMainScroll = document.querySelector(".main")?.scrollTop ?? 0;
   const product = state.data.products.find((item) => item.id === id);
   if (!product || Number(product.stock) <= 0) return alert("This product is out of stock.");
   const cart = currentCart();
