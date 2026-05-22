@@ -700,8 +700,8 @@ textarea:focus {
 
 .bill-panel {
   position: sticky;
-  top: 16px;
-  height: calc(100dvh - 116px);
+  top: 0;
+  height: calc(100dvh - 48px);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -709,8 +709,8 @@ textarea:focus {
 }
 
 .bill-scroll {
-  flex: 1 1 382px;
-  min-height: clamp(260px, calc(100dvh - 470px), 382px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding-right: 4px;
 }
@@ -751,6 +751,8 @@ textarea:focus {
 
 .bill-footer {
   flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
