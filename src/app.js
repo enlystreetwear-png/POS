@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-bill-layout";
+const assetVersion = "20260522-clean-tables";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -414,7 +414,6 @@ function renderShell() {
         </div>
       </aside>
       <main class="main">
-        ${renderTopbar()}
         ${views[state.view]()}
       </main>
       ${renderMobileNav()}
@@ -459,6 +458,7 @@ function renderMobileNav() {
 }
 
 function renderTopbar() {
+  if (state.view === "pos") return "";
   const titles = {
     pos: ["Restaurant Tables", "Select a table, add menu items, accept payment, and print receipts."],
     dashboard: ["Restaurant Dashboard", "Today’s revenue, open tables, orders, and stock health."],
