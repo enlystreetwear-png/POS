@@ -1112,6 +1112,11 @@ function renderOutletSettings() {
     ]]
   ];
   return `
+    <section class="panel settings-panel">
+      <div class="panel-header"><h3>Billing Workflow</h3></div>
+      <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
+      <button class="button" id="save-billing-workflow" style="margin-top:12px">${icon("save")} Save billing workflow</button>
+    </section>
     ${groups.map(([title, items]) => `
       <section class="panel settings-panel">
         <div class="panel-header"><h3>${title}</h3></div>
@@ -1307,7 +1312,7 @@ function actionDetails(action, label) {
     "calculations": simple("Calculation Settings", configPanel("Billing calculation", "Control service charge and rounding behavior used at checkout.", [{ key: "serviceCharge", label: "Service charge %", type: "number", value: 0 }, { key: "roundOff", label: "Round off bills", type: "checkbox", value: true }, { key: "roundOffMode", label: "Round off mode", value: "Nearest rupee" }], ["Print a sample bill after changes.", "Keep service charge visible to staff.", "Review totals in Sales report."])),
     "linked-services": simple("Linked Services", configPanel("Service links", "Store service connection details for WhatsApp, delivery, and online orders.", [{ key: "whatsappNumber", label: "WhatsApp number", value: "" }, { key: "deliveryPartner", label: "Delivery partner", value: "" }, { key: "onlineOrderUrl", label: "Online order URL", value: "" }], ["Use one official WhatsApp number.", "Keep partner name current.", "Test links before printing QR codes."])),
     "table-management": simple("Table Management", renderTableManagementPanel()),
-    "print": simple("Print Settings", configPanel("Receipt print", "Set receipt format, GST details, and print behavior.", [{ key: "paperSize", label: "Paper size", value: "80mm" }, { key: "showGstin", label: "Show GSTIN on receipt", type: "checkbox", value: true }, { key: "autoPrintAfterBilling", label: "Auto print after billing", type: "checkbox", value: false }], ["Use browser print for receipts.", "Check margins on 80mm paper.", "Print one receipt after changing logo or GSTIN."])),
+    "print": simple("Print Settings", configPanel("Receipt print", "Set receipt format, GST details, and print behavior.", [{ key: "paperSize", label: "Paper size", value: "80mm" }, { key: "showGstin", label: "Show GSTIN on receipt", type: "checkbox", value: true }, { key: "saveBillAfterPrint", label: "Show save button after bill print", type: "checkbox", value: state.data.settings.saveBillAfterPrint }], ["Use browser print for receipts.", "Check margins on 80mm paper.", "Print one receipt after changing logo or GSTIN."])),
     "customer": simple("Customer Settings", configPanel("Guest rules", "Configure how guest phone numbers and credit sales are handled.", [{ key: "phoneRequired", label: "Phone required for guests", type: "checkbox", value: false }, { key: "allowCredit", label: "Allow credit bills", type: "checkbox", value: true }, { key: "creditLimit", label: "Default credit limit", type: "number", value: 0 }], ["Capture phone for credit bills.", "Review dues from Operations.", "Avoid duplicate guest names."])),
     "online-advance-order-configuration": simple("Online / Advance Order Configuration", configPanel("Advance order rules", "Control how future orders are accepted and prepared.", [{ key: "autoAccept", label: "Auto accept orders", type: "checkbox", value: false }, { key: "advanceOrderHours", label: "Advance order hours", type: "number", value: 24 }, { key: "cancelBeforeMinutes", label: "Cancel before minutes", type: "number", value: 30 }], ["Confirm pickup or delivery time.", "Record customer phone.", "Review advance orders before rush hour."])),
     "billing-system": simple("Billing System", configPanel("Invoice system", "Set invoice identity and counter naming for reports.", [{ key: "invoicePrefix", label: "Invoice prefix", value: state.data.settings.invoicePrefix }, { key: "counterName", label: "Counter name", value: "Billing Station" }, { key: "serverMode", label: "Server mode", value: "Main Server" }], ["Keep invoice prefix short.", "Use counter names in shift reports.", "Sync after changing billing identity."])),
@@ -1535,6 +1540,7 @@ function bindEvents() {
   }));
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
+  document.querySelector("#save-billing-workflow")?.addEventListener("click", saveBillingWorkflow);
   document.querySelector("#save-module-settings")?.addEventListener("click", saveModuleSettings);
   document.querySelector("#reset-account-data")?.addEventListener("click", resetCurrentAccountData);
   document.querySelector("#new-customer")?.addEventListener("click", () => { state.modal = { type: "customer" }; render(); });
@@ -2080,10 +2086,18 @@ async function saveSettings() {
     phone: document.querySelector("#setting-phone").value.trim(),
     gstin: document.querySelector("#setting-gstin").value.trim(),
     taxRate: Number(document.querySelector("#setting-taxRate").value || 0),
-    saveBillAfterPrint: Boolean(document.querySelector("#setting-saveBillAfterPrint")?.checked),
     address: document.querySelector("#setting-address").value.trim()
   };
   await persistSafely("Restaurant settings saved", "Restaurant settings saved locally. Cloud sync failed.");
+  render();
+}
+
+async function saveBillingWorkflow() {
+  state.data.settings = {
+    ...state.data.settings,
+    saveBillAfterPrint: Boolean(document.querySelector("#setting-saveBillAfterPrint")?.checked)
+  };
+  await persistSafely("Billing workflow saved", "Billing workflow saved locally. Cloud sync failed.");
   render();
 }
 
@@ -2106,6 +2120,9 @@ async function saveModuleSettings() {
   }
   if (action === "tax" && values.taxRate) {
     state.data.settings.taxRate = Number(values.taxRate || state.data.settings.taxRate);
+  }
+  if (action === "print" && Object.prototype.hasOwnProperty.call(values, "saveBillAfterPrint")) {
+    state.data.settings.saveBillAfterPrint = Boolean(values.saveBillAfterPrint);
   }
   state.modal = null;
   await persistSafely("Module settings saved", "Module settings saved locally. Cloud sync failed.");
