@@ -1474,10 +1474,7 @@ function bindEvents() {
   document.querySelector("#view-kots")?.addEventListener("click", () => handleAction("kots", "KOTs"));
   document.querySelector("#add-table")?.addEventListener("click", addTable);
   document.querySelector("#remove-table")?.addEventListener("click", removeTable);
-  document.querySelector("#back-to-tables")?.addEventListener("click", () => {
-    state.selectedTableId = "";
-    render();
-  });
+  document.querySelector("#back-to-tables")?.addEventListener("click", backToTables);
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
     render();
@@ -1757,6 +1754,26 @@ function changeQty(id, amount) {
   const nextCart = cart.filter((cartItem) => cartItem.qty > 0);
   setCurrentCart(nextCart);
   persist();
+  render();
+}
+
+async function backToTables() {
+  const tableId = state.selectedTableId;
+  if (!tableId) {
+    render();
+    return;
+  }
+  const hasItems = (state.data.openBills[tableId] || []).length > 0;
+  const hasPrintedKot = (state.data.kots || []).some((kot) => kot.tableId === tableId && kot.status !== "billed");
+  if (hasItems && !hasPrintedKot) {
+    delete state.data.openBills[tableId];
+    delete state.billDrafts?.[tableId];
+    state.selectedTableId = "";
+    await persistSafely("Unsaved table items cleared", "Items cleared locally. Cloud sync failed.");
+    render();
+    return;
+  }
+  state.selectedTableId = "";
   render();
 }
 
