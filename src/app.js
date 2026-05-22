@@ -308,7 +308,8 @@ function currentCart() {
 
 function setCurrentCart(cart) {
   if (!state.selectedTableId) return;
-  state.data.openBills[state.selectedTableId] = cart;
+  if (cart.length) state.data.openBills[state.selectedTableId] = cart;
+  else delete state.data.openBills[state.selectedTableId];
 }
 
 function selectedTable() {
@@ -1439,6 +1440,7 @@ function bindEvents() {
     if (!confirm("Clear all items from this table bill?")) return;
     setCurrentCart([]);
     await persist();
+    state.selectedTableId = "";
     setToast("Table bill cleared");
     render();
   });
@@ -1658,7 +1660,9 @@ function changeQty(id, amount) {
   const item = cart.find((cartItem) => cartItem.id === id);
   if (!item) return;
   item.qty += amount;
-  setCurrentCart(cart.filter((cartItem) => cartItem.qty > 0));
+  const nextCart = cart.filter((cartItem) => cartItem.qty > 0);
+  setCurrentCart(nextCart);
+  if (!nextCart.length) state.selectedTableId = "";
   persist();
   render();
 }
