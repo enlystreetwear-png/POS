@@ -396,10 +396,6 @@ function renderAuth() {
         </div>
       </section>
       <section class="auth-card">
-        <div class="auth-plan">
-          ${icon("badge-check")}
-          <div><strong>Annual POS subscription</strong><span>1 year access • ${money(seed.subscription.amount)} / store</span></div>
-        </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
         ${waitingForFirebase ? `<div class="auth-loading">${icon("loader-circle")}<span>Connecting to Firebase. Login will be ready in a moment.</span></div>` : ""}
         <h2>Sign in with phone OTP</h2>
