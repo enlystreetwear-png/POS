@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-clean-tables";
+const assetVersion = "20260522-bill-controls";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -82,6 +82,7 @@ const state = {
   tenantId: initialTenantId,
   data: readLocal(initialTenantId),
   selectedTableId: "",
+  billDrafts: {},
   search: "",
   modal: null,
   authError: "",
@@ -317,13 +318,25 @@ function selectedTable() {
   return state.data.tables.find((table) => table.id === state.selectedTableId);
 }
 
+function currentBillDraft() {
+  if (!state.selectedTableId) return { customerName: "Walk-in Customer", discount: 0, paid: "" };
+  state.billDrafts ||= {};
+  state.billDrafts[state.selectedTableId] ||= {
+    customerName: "Walk-in Customer",
+    discount: 0,
+    paid: ""
+  };
+  return state.billDrafts[state.selectedTableId];
+}
+
 function tableTotal(tableId) {
   return (state.data.openBills[tableId] || []).reduce((sum, item) => sum + item.price * item.qty, 0);
 }
 
 function totals(cart = currentCart()) {
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const discount = Number(document.querySelector("#discount")?.value || 0);
+  const draft = currentBillDraft();
+  const discount = Number(document.querySelector("#discount")?.value ?? draft.discount ?? 0);
   const taxRate = Number(state.data.settings.taxRate || 0);
   const taxable = Math.max(0, subtotal - discount);
   const tax = taxable * (taxRate / 100);
@@ -605,33 +618,43 @@ function renderPOS() {
   const locked = !isSubscriptionActive();
   const table = selectedTable();
   const cart = currentCart();
+  const draft = currentBillDraft();
   return `
     ${locked ? renderSubscriptionBanner() : ""}
-    <section class="table-context">
-      <button class="button secondary" id="back-to-tables">${icon("arrow-left")} Tables</button>
-      <div><strong>${table?.name || "Selected table"}</strong><span>${cart.length} items in current bill</span></div>
-    </section>
     <section class="grid pos-grid">
       <div class="panel">
-        <div class="panel-header">
-          <h3>Menu</h3>
-          <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${state.search}">
+        <div class="panel-header menu-panel-header">
+          <div class="toolbar menu-titlebar">
+            <button class="button secondary compact" id="back-to-tables">${icon("arrow-left")} Tables</button>
+            <h3>Menu</h3>
+          </div>
+          <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${escapeAttr(state.search)}">
         </div>
         <div class="grid product-grid">
           ${filtered.map(renderProductCard).join("") || `<div class="empty">No products found</div>`}
         </div>
       </div>
       <aside class="panel bill-panel">
-        <div class="panel-header"><h3>${table?.name || "Current bill"}</h3><button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button></div>
+        <div class="panel-header bill-heading">
+          <div class="bill-title-stack">
+            <h3>${table?.name || "Current bill"}</h3>
+            <label class="bill-customer-field">
+              <span>Customer</span>
+              <input class="input" id="bill-customer-name" list="customer-suggestions" value="${escapeAttr(draft.customerName)}" placeholder="Walk-in Customer">
+            </label>
+            <datalist id="customer-suggestions">
+              ${state.data.customers.map((c) => `<option value="${escapeAttr(c.name)}"></option>`).join("")}
+            </datalist>
+          </div>
+          <button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button>
+        </div>
         <div class="bill-scroll">
           <div class="cart-list">${cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to this table bill</div>`}</div>
         </div>
         <div class="bill-footer">
           <div class="form-grid bill-form">
-            <div class="field"><label>Customer</label><select id="customer">${state.data.customers.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
             <div class="field"><label>Payment</label><select id="payment"><option>Cash</option><option>UPI</option><option>Card</option><option>Credit</option></select></div>
-            <div class="field"><label>Discount</label><input class="input" id="discount" type="number" value="0" min="0"></div>
-            <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0" value="${escapeAttr(draft.paid)}"></div>
           </div>
           ${renderSummary()}
           <div class="bill-actions">
@@ -738,11 +761,12 @@ function renderCartRow(item) {
 
 function renderSummary() {
   const current = totals();
-  const paid = Number(document.querySelector("#paid")?.value || 0);
+  const draft = currentBillDraft();
+  const paid = Number(document.querySelector("#paid")?.value || draft.paid || 0);
   return `
     <div class="summary">
       <div class="summary-row"><span>Subtotal</span><strong>${money(current.subtotal)}</strong></div>
-      <div class="summary-row"><span>Discount</span><strong>${money(current.discount)}</strong></div>
+      <label class="summary-row summary-edit"><span>Discount</span><input class="input summary-input" id="discount" type="number" value="${escapeAttr(current.discount)}" min="0"></label>
       <div class="summary-row"><span>Tax (${state.data.settings.taxRate}%)</span><strong>${money(current.tax)}</strong></div>
       <div class="summary-row total"><span>Total</span><strong>${money(current.total)}</strong></div>
       <div class="summary-row"><span>Change due</span><strong>${money(Math.max(0, paid - current.total))}</strong></div>
@@ -1450,6 +1474,7 @@ function bindEvents() {
     const tableId = state.selectedTableId;
     const hadItems = Boolean(tableId && (state.data.openBills[tableId] || []).length);
     if (tableId) delete state.data.openBills[tableId];
+    if (tableId) delete state.billDrafts?.[tableId];
     state.selectedTableId = "";
     setToast(hadItems ? "Table bill cleared" : "Returned to tables");
     render();
@@ -1461,8 +1486,17 @@ function bindEvents() {
       render();
     }
   });
-  document.querySelector("#discount")?.addEventListener("input", updateSummaryOnly);
-  document.querySelector("#paid")?.addEventListener("input", updateSummaryOnly);
+  document.querySelector("#bill-customer-name")?.addEventListener("input", (event) => {
+    currentBillDraft().customerName = event.target.value;
+  });
+  document.querySelector("#discount")?.addEventListener("input", (event) => {
+    currentBillDraft().discount = event.target.value;
+    updateSummaryOnly();
+  });
+  document.querySelector("#paid")?.addEventListener("input", (event) => {
+    currentBillDraft().paid = event.target.value;
+    updateSummaryOnly();
+  });
   document.querySelector("#save-kot")?.addEventListener("click", saveKot);
   document.querySelector("#checkout")?.addEventListener("click", checkout);
   document.querySelector("#renew-subscription")?.addEventListener("click", renewSubscription);
@@ -1655,8 +1689,28 @@ async function closeShift() {
 }
 
 function updateSummaryOnly() {
+  const active = document.activeElement;
+  const activeId = active?.id;
+  const selectionStart = typeof active?.selectionStart === "number" ? active.selectionStart : null;
+  const selectionEnd = typeof active?.selectionEnd === "number" ? active.selectionEnd : null;
   const summary = document.querySelector(".summary");
   if (summary) summary.outerHTML = renderSummary();
+  if (activeId) {
+    const nextActive = document.getElementById(activeId);
+    if (nextActive) {
+      nextActive.focus();
+      if (selectionStart !== null && typeof nextActive.setSelectionRange === "function") {
+        nextActive.setSelectionRange(selectionStart, selectionEnd ?? selectionStart);
+      }
+    }
+  }
+  const discountInput = document.querySelector("#discount");
+  if (discountInput) {
+    discountInput.addEventListener("input", (event) => {
+      currentBillDraft().discount = event.target.value;
+      updateSummaryOnly();
+    });
+  }
 }
 
 function addToCart(id) {
@@ -1757,7 +1811,19 @@ async function checkout() {
   const cart = currentCart();
   const table = selectedTable();
   if (!cart.length) return alert("Add products before billing.");
-  const customer = state.data.customers.find((item) => item.id === document.querySelector("#customer")?.value) || state.data.customers[0] || seed.customers[0];
+  const draft = currentBillDraft();
+  const typedCustomerName = (document.querySelector("#bill-customer-name")?.value || draft.customerName || "Walk-in Customer").trim() || "Walk-in Customer";
+  let customer = state.data.customers.find((item) => item.name.toLowerCase() === typedCustomerName.toLowerCase());
+  if (!customer) {
+    customer = {
+      id: crypto.randomUUID(),
+      name: typedCustomerName,
+      phone: "",
+      visits: 0,
+      totalSpent: 0
+    };
+    state.data.customers.unshift(customer);
+  }
   const current = totals();
   const tableId = state.selectedTableId;
   const sale = {
@@ -1780,8 +1846,9 @@ async function checkout() {
     const item = cart.find((cartItem) => cartItem.id === product.id);
     return item ? { ...product, stock: Math.max(0, Number(product.stock) - item.qty) } : product;
   });
-  state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
+  state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, visits: Number(item.visits || 0) + 1, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
   state.data.openBills[tableId] = [];
+  delete state.billDrafts?.[tableId];
   state.selectedTableId = "";
   writeLocal();
   autoPrint(receiptMarkup(sale));

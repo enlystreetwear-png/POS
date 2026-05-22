@@ -375,6 +375,19 @@ button {
   font-size: 18px;
 }
 
+.menu-panel-header {
+  align-items: flex-start;
+}
+
+.menu-titlebar h3 {
+  line-height: 42px;
+}
+
+.button.compact {
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -706,6 +719,34 @@ textarea:focus {
   min-height: 0;
 }
 
+.bill-heading {
+  align-items: flex-start;
+}
+
+.bill-title-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.bill-customer-field {
+  display: grid;
+  gap: 5px;
+}
+
+.bill-customer-field span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.bill-customer-field .input {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
 .bill-form {
   margin-bottom: 12px;
 }
@@ -891,8 +932,21 @@ textarea:focus {
 .summary-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   color: var(--muted);
+}
+
+.summary-edit {
+  cursor: text;
+}
+
+.summary-input {
+  width: 128px;
+  min-height: 36px;
+  padding: 7px 10px;
+  text-align: right;
+  font-weight: 800;
 }
 
 .summary-row.total {
