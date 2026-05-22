@@ -680,7 +680,7 @@ function renderPOS() {
             <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
             ${state.pendingBill?.tableId === state.selectedTableId
               ? `<button class="button" id="save-printed-bill" ${state.checkoutBusy ? "disabled" : ""}>${icon("save")} ${state.checkoutBusy ? "Saving..." : "Save bill"}</button>`
-              : `<button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : "BILL"}</button>`}
+              : `<button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : state.data.settings.saveBillAfterPrint ? "Print bill" : "BILL"}</button>`}
           </div>
         </div>
       </aside>
@@ -1540,6 +1540,7 @@ function bindEvents() {
   }));
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
+  document.querySelector("#setting-saveBillAfterPrint")?.addEventListener("change", saveBillingWorkflow);
   document.querySelector("#save-billing-workflow")?.addEventListener("click", saveBillingWorkflow);
   document.querySelector("#save-module-settings")?.addEventListener("click", saveModuleSettings);
   document.querySelector("#reset-account-data")?.addEventListener("click", resetCurrentAccountData);
@@ -1799,10 +1800,10 @@ async function backToTables() {
   }
   const hasItems = (state.data.openBills[tableId] || []).length > 0;
   const hasPrintedKot = (state.data.kots || []).some((kot) => kot.tableId === tableId && kot.status !== "billed");
-  if (hasItems && !hasPrintedKot) {
+  const hasPrintedPendingBill = state.pendingBill?.tableId === tableId;
+  if (hasItems && !hasPrintedKot && !hasPrintedPendingBill) {
     delete state.data.openBills[tableId];
     delete state.billDrafts?.[tableId];
-    if (state.pendingBill?.tableId === tableId) state.pendingBill = null;
     state.selectedTableId = "";
     await persistSafely("Unsaved table items cleared", "Items cleared locally. Cloud sync failed.");
     render();
@@ -1932,28 +1933,30 @@ async function savePrintedBill() {
 }
 
 async function completeSale(sale, tableId, customer) {
+  if (state.checkoutBusy) return;
   state.checkoutBusy = true;
-  state.data.kots = (state.data.kots || []).map((kot) => kot.tableId === tableId ? { ...kot, status: "billed", billedAt: new Date().toISOString() } : kot);
-  state.data.sales.unshift(sale);
-  state.data.products = state.data.products.map((product) => {
-    const item = cart.find((cartItem) => cartItem.id === product.id);
-    return item ? { ...product, stock: Math.max(0, Number(product.stock) - item.qty) } : product;
-  });
-  state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, visits: Number(item.visits || 0) + 1, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
-  state.data.openBills[tableId] = [];
-  delete state.billDrafts?.[tableId];
-  state.pendingBill = null;
-  state.selectedTableId = "";
-  writeLocal();
-  if (!state.data.settings.saveBillAfterPrint) autoPrint(receiptMarkup(sale));
   try {
+    const saleItems = sale.items || [];
+    state.data.kots = (state.data.kots || []).map((kot) => kot.tableId === tableId ? { ...kot, status: "billed", billedAt: new Date().toISOString() } : kot);
+    state.data.sales.unshift(sale);
+    state.data.products = state.data.products.map((product) => {
+      const item = saleItems.find((cartItem) => cartItem.id === product.id);
+      return item ? { ...product, stock: Math.max(0, Number(product.stock) - item.qty) } : product;
+    });
+    state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, visits: Number(item.visits || 0) + 1, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
+    state.data.openBills[tableId] = [];
+    delete state.billDrafts?.[tableId];
+    state.pendingBill = null;
+    state.selectedTableId = "";
+    writeLocal();
+    if (!state.data.settings.saveBillAfterPrint) autoPrint(receiptMarkup(sale));
     await persist();
+    setToast("Billing completed");
   } catch (error) {
     console.warn("Checkout cloud sync failed", error);
     state.authError = "Billing completed locally, but cloud sync failed. Check Firebase rules and internet, then continue.";
     setToast("Billing completed locally. Cloud sync failed.", "error");
   } finally {
-    if (state.syncStatus !== "error") setToast("Billing completed");
     state.checkoutBusy = false;
     render();
   }
