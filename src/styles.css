@@ -23,6 +23,14 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -46,10 +54,13 @@ button {
 }
 
 .app-shell {
-  min-height: 100vh;
+  width: 100%;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 86px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   transition: grid-template-columns 180ms ease;
+  overflow: hidden;
 }
 
 .app-shell.sidebar-expanded {
@@ -65,7 +76,7 @@ button {
   gap: 22px;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   box-shadow: 18px 0 45px rgba(17, 24, 39, 0.18);
   overflow: hidden;
 }
@@ -213,6 +224,9 @@ button {
 .main {
   padding: 24px;
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .topbar {
@@ -992,7 +1006,8 @@ textarea:focus {
 }
 
 .auth {
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
   background: #000000;
@@ -1496,10 +1511,12 @@ textarea:focus {
 @media (max-width: 1020px) {
   .app-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .app-shell.sidebar-expanded {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .sidebar {
@@ -1507,8 +1524,6 @@ textarea:focus {
   }
 
   .mobile-nav {
-    position: sticky;
-    bottom: 0;
     z-index: 20;
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -1574,7 +1589,7 @@ textarea:focus {
 
 @media (max-width: 720px) {
   .main {
-    padding: 16px 14px 82px;
+    padding: 16px 14px;
   }
 
   .topbar {
