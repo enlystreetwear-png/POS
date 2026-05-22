@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-bill-controls";
+const assetVersion = "20260523-mobile-pos";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -826,7 +826,6 @@ function renderProducts() {
         ${settingField("phone", "Phone")}
         ${settingField("gstin", "GSTIN")}
         ${settingField("taxRate", "Tax rate %", "number")}
-        <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
         <div class="field" style="grid-column:1/-1"><label>Address</label><textarea id="setting-address">${state.data.settings.address || ""}</textarea></div>
       </div>
       <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
