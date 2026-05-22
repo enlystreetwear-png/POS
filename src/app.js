@@ -639,7 +639,6 @@ function renderPOS() {
           <div class="bill-title-stack">
             <h3>${table?.name || "Current bill"}</h3>
             <label class="bill-customer-field">
-              <span>Customer</span>
               <input class="input" id="bill-customer-name" list="customer-suggestions" value="${escapeAttr(draft.customerName)}" placeholder="Walk-in Customer">
             </label>
           </div>
