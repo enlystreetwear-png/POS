@@ -996,6 +996,14 @@ textarea:focus {
   margin: 6px 0 14px;
 }
 
+.print-stage {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 420px;
+  pointer-events: none;
+}
+
 .empty {
   border: 1px dashed var(--line);
   border-radius: 8px;
@@ -1653,9 +1661,18 @@ textarea:focus {
 
   .receipt,
   .receipt *,
+  .print-stage,
+  .print-stage *,
   body.report-printing .report-content,
   body.report-printing .report-content * {
     visibility: visible;
+  }
+
+  .print-stage {
+    position: fixed;
+    inset: 0 auto auto 0;
+    width: 100%;
+    pointer-events: auto;
   }
 
   .receipt {

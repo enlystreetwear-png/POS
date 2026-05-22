@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-auto-print";
+const assetVersion = "20260522-direct-print";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -85,7 +85,8 @@ const state = {
   search: "",
   modal: null,
   authError: "",
-  lastReceipt: null
+  lastReceipt: null,
+  printContent: ""
 };
 
 const app = document.querySelector("#app");
@@ -417,6 +418,7 @@ function renderShell() {
         ${views[state.view]()}
       </main>
       ${renderMobileNav()}
+      ${state.printContent ? `<div class="print-stage">${state.printContent}</div>` : ""}
       ${state.modal ? renderModal() : ""}
       ${renderToast()}
     </div>
@@ -1117,8 +1119,16 @@ function renderModal() {
   return "";
 }
 
-function autoPrint() {
-  window.setTimeout(() => window.print(), 120);
+function autoPrint(markup) {
+  state.printContent = markup;
+  render();
+  window.setTimeout(() => {
+    window.print();
+    window.setTimeout(() => {
+      state.printContent = "";
+      render();
+    }, 500);
+  }, 120);
 }
 
 function actionKey(label = "") {
@@ -1468,14 +1478,13 @@ function bindEvents() {
   document.querySelector("#new-customer")?.addEventListener("click", () => { state.modal = { type: "customer" }; render(); });
   document.querySelector("#save-customer")?.addEventListener("click", saveCustomer);
   document.querySelectorAll("[data-receipt]").forEach((button) => button.addEventListener("click", () => {
-    state.modal = { type: "receipt", sale: state.data.sales.find((sale) => sale.id === button.dataset.receipt) };
-    render();
+    const sale = state.data.sales.find((item) => item.id === button.dataset.receipt);
+    if (sale) autoPrint(receiptMarkup(sale));
   }));
   document.querySelectorAll("[data-kot]").forEach((button) => button.addEventListener("click", () => {
     const kot = (state.data.kots || []).find((item) => item.id === button.dataset.kot);
     if (!kot) return;
-    state.modal = { type: "kot", kot };
-    render();
+    autoPrint(kotMarkup(kot));
   }));
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => { state.modal = null; render(); }));
   document.querySelector("#print-receipt")?.addEventListener("click", () => window.print());
@@ -1691,10 +1700,8 @@ async function saveKot() {
     createdAt: new Date().toISOString()
   };
   state.data.kots = [kot, ...(state.data.kots || [])].slice(0, 100);
-  state.modal = { type: "kot", kot };
   writeLocal();
-  render();
-  autoPrint();
+  autoPrint(kotMarkup(kot));
   try {
     await persist();
     setToast(`${kot.kotNo} sent to kitchen`);
@@ -1776,10 +1783,8 @@ async function checkout() {
   state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
   state.data.openBills[tableId] = [];
   state.selectedTableId = "";
-  state.modal = { type: "receipt", sale };
   writeLocal();
-  render();
-  autoPrint();
+  autoPrint(receiptMarkup(sale));
   try {
     await persist();
   } catch (error) {
