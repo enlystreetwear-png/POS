@@ -26,7 +26,8 @@ const seed = {
     phone: "",
     address: "Your restaurant address",
     taxRate: 18,
-    invoicePrefix: "CC"
+    invoicePrefix: "CC",
+    saveBillAfterPrint: false
   },
   tables: [
     { id: "T1", name: "Table 1", seats: 2 },
@@ -89,7 +90,8 @@ const state = {
   modal: null,
   authError: "",
   lastReceipt: null,
-  printContent: ""
+  printContent: "",
+  pendingBill: null
 };
 
 const app = document.querySelector("#app");
@@ -676,7 +678,9 @@ function renderPOS() {
           ${renderSummary()}
           <div class="bill-actions">
             <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
-            <button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : "BILL"}</button>
+            ${state.pendingBill?.tableId === state.selectedTableId
+              ? `<button class="button" id="save-printed-bill" ${state.checkoutBusy ? "disabled" : ""}>${icon("save")} ${state.checkoutBusy ? "Saving..." : "Save bill"}</button>`
+              : `<button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : "BILL"}</button>`}
           </div>
         </div>
       </aside>
@@ -822,6 +826,7 @@ function renderProducts() {
         ${settingField("phone", "Phone")}
         ${settingField("gstin", "GSTIN")}
         ${settingField("taxRate", "Tax rate %", "number")}
+        <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
         <div class="field" style="grid-column:1/-1"><label>Address</label><textarea id="setting-address">${state.data.settings.address || ""}</textarea></div>
       </div>
       <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
@@ -1496,6 +1501,7 @@ function bindEvents() {
     if (tableId) delete state.data.openBills[tableId];
     if (tableId) delete state.billDrafts?.[tableId];
     if (tableId) syncActiveKotsWithTable(tableId, []);
+    if (state.pendingBill?.tableId === tableId) state.pendingBill = null;
     state.selectedTableId = "";
     setToast(hadItems ? "Table bill cleared" : "Returned to tables");
     render();
@@ -1520,6 +1526,7 @@ function bindEvents() {
   });
   document.querySelector("#save-kot")?.addEventListener("click", saveKot);
   document.querySelector("#checkout")?.addEventListener("click", checkout);
+  document.querySelector("#save-printed-bill")?.addEventListener("click", savePrintedBill);
   document.querySelector("#renew-subscription")?.addEventListener("click", renewSubscription);
   document.querySelector("#new-product")?.addEventListener("click", () => { state.modal = { type: "product", product: {} }; render(); });
   document.querySelectorAll("[data-edit-product]").forEach((button) => button.addEventListener("click", () => {
@@ -1736,6 +1743,7 @@ function updateSummaryOnly() {
 
 function addToCart(id) {
   if (!state.selectedTableId) return;
+  state.pendingBill = null;
   state.restoreMainScroll = document.querySelector(".main")?.scrollTop ?? 0;
   const product = state.data.products.find((item) => item.id === id);
   if (!product || Number(product.stock) <= 0) return alert("This product is out of stock.");
@@ -1748,6 +1756,7 @@ function addToCart(id) {
 }
 
 function changeQty(id, amount) {
+  state.pendingBill = null;
   const cart = currentCart();
   const item = cart.find((cartItem) => cartItem.id === id);
   if (!item) return;
@@ -1787,6 +1796,7 @@ async function backToTables() {
   if (hasItems && !hasPrintedKot) {
     delete state.data.openBills[tableId];
     delete state.billDrafts?.[tableId];
+    if (state.pendingBill?.tableId === tableId) state.pendingBill = null;
     state.selectedTableId = "";
     await persistSafely("Unsaved table items cleared", "Items cleared locally. Cloud sync failed.");
     render();
@@ -1899,6 +1909,23 @@ async function checkout() {
     items: structuredClone(cart),
     ...current
   };
+  if (state.data.settings.saveBillAfterPrint) {
+    state.pendingBill = { sale, tableId, customer };
+    autoPrint(receiptMarkup(sale));
+    setToast("Bill printed. Click Save bill to finish.");
+    render();
+    return;
+  }
+  await completeSale(sale, tableId, customer);
+}
+
+async function savePrintedBill() {
+  if (state.checkoutBusy || !state.pendingBill) return;
+  const { sale, tableId, customer } = state.pendingBill;
+  await completeSale(sale, tableId, customer);
+}
+
+async function completeSale(sale, tableId, customer) {
   state.checkoutBusy = true;
   state.data.kots = (state.data.kots || []).map((kot) => kot.tableId === tableId ? { ...kot, status: "billed", billedAt: new Date().toISOString() } : kot);
   state.data.sales.unshift(sale);
@@ -1909,9 +1936,10 @@ async function checkout() {
   state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, visits: Number(item.visits || 0) + 1, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
   state.data.openBills[tableId] = [];
   delete state.billDrafts?.[tableId];
+  state.pendingBill = null;
   state.selectedTableId = "";
   writeLocal();
-  autoPrint(receiptMarkup(sale));
+  if (!state.data.settings.saveBillAfterPrint) autoPrint(receiptMarkup(sale));
   try {
     await persist();
   } catch (error) {
@@ -2052,6 +2080,7 @@ async function saveSettings() {
     phone: document.querySelector("#setting-phone").value.trim(),
     gstin: document.querySelector("#setting-gstin").value.trim(),
     taxRate: Number(document.querySelector("#setting-taxRate").value || 0),
+    saveBillAfterPrint: Boolean(document.querySelector("#setting-saveBillAfterPrint")?.checked),
     address: document.querySelector("#setting-address").value.trim()
   };
   await persistSafely("Restaurant settings saved", "Restaurant settings saved locally. Cloud sync failed.");
