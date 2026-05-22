@@ -84,6 +84,7 @@ const state = {
   selectedTableId: "",
   billDrafts: {},
   search: "",
+  selectedCategory: "All",
   modal: null,
   authError: "",
   lastReceipt: null,
@@ -612,9 +613,17 @@ function lastClosingLabel() {
 
 function renderPOS() {
   if (!state.selectedTableId) return renderTablePicker();
-  const filtered = state.data.products.filter((product) =>
-    [product.name, product.sku, product.category].join(" ").toLowerCase().includes(state.search.toLowerCase())
+  const categories = ["All", ...new Set(state.data.products.map((product) => product.category || "General"))].sort((a, b) =>
+    a === "All" ? -1 : b === "All" ? 1 : a.localeCompare(b)
   );
+  if (!categories.includes(state.selectedCategory)) state.selectedCategory = "All";
+  const search = state.search.toLowerCase();
+  const filtered = state.data.products.filter((product) => {
+    const category = product.category || "General";
+    const matchesCategory = state.selectedCategory === "All" || category === state.selectedCategory;
+    const matchesSearch = [product.name, product.sku, category].join(" ").toLowerCase().includes(search);
+    return matchesCategory && matchesSearch;
+  });
   const locked = !isSubscriptionActive();
   const table = selectedTable();
   const cart = currentCart();
@@ -629,6 +638,13 @@ function renderPOS() {
             <h3>Menu</h3>
           </div>
           <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${escapeAttr(state.search)}">
+        </div>
+        <div class="category-strip">
+          ${categories.map((category) => `
+            <button class="category-chip ${category === state.selectedCategory ? "active" : ""}" data-category="${escapeAttr(category)}">
+              ${escapeAttr(category)}
+            </button>
+          `).join("")}
         </div>
         <div class="grid product-grid">
           ${filtered.map(renderProductCard).join("") || `<div class="empty">No products found</div>`}
@@ -1463,6 +1479,12 @@ function bindEvents() {
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
     render();
+  });
+  document.querySelectorAll("[data-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedCategory = button.dataset.category;
+      render();
+    });
   });
   document.querySelectorAll("[data-add]").forEach((button) => {
     button.addEventListener("click", () => addToCart(button.dataset.add));

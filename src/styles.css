@@ -429,6 +429,34 @@ textarea:focus {
   min-width: min(320px, 100%);
 }
 
+.category-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 14px;
+  margin-top: -2px;
+  scrollbar-width: thin;
+}
+
+.category-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.category-chip.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+}
+
 .report-search {
   min-width: min(240px, 100%);
 }
