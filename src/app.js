@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260521-pondy-assets-4";
+const assetVersion = "20260522-table-clear";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -1434,7 +1434,9 @@ function bindEvents() {
   document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1)));
   document.querySelector("#clear-cart")?.addEventListener("click", async () => {
     if (!currentCart().length) {
-      setToast("No items to clear");
+      state.selectedTableId = "";
+      setToast("Returned to tables");
+      render();
       return;
     }
     if (!confirm("Clear all items from this table bill?")) return;
@@ -1662,7 +1664,6 @@ function changeQty(id, amount) {
   item.qty += amount;
   const nextCart = cart.filter((cartItem) => cartItem.qty > 0);
   setCurrentCart(nextCart);
-  if (!nextCart.length) state.selectedTableId = "";
   persist();
   render();
 }
