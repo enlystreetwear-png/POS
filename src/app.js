@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260522-direct-print";
+const assetVersion = "20260522-bill-layout";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -625,14 +625,14 @@ function renderPOS() {
         <div class="panel-header"><h3>${table?.name || "Current bill"}</h3><button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button></div>
         <div class="bill-scroll">
           <div class="cart-list">${cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to this table bill</div>`}</div>
+        </div>
+        <div class="bill-footer">
           <div class="form-grid bill-form">
             <div class="field"><label>Customer</label><select id="customer">${state.data.customers.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
             <div class="field"><label>Payment</label><select id="payment"><option>Cash</option><option>UPI</option><option>Card</option><option>Credit</option></select></div>
             <div class="field"><label>Discount</label><input class="input" id="discount" type="number" value="0" min="0"></div>
             <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0"></div>
           </div>
-        </div>
-        <div class="bill-footer">
           ${renderSummary()}
           <div class="bill-actions">
             <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
