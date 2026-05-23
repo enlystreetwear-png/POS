@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-mobile-category-wrap";
+const assetVersion = "20260524-mobile-category-side-scroll-2";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -86,6 +86,8 @@ const state = {
   billDrafts: {},
   search: "",
   selectedCategory: "All",
+  categoryScrollLeft: 0,
+  categoryDragSuppressUntil: 0,
   mobileCartOpen: false,
   restoreMainScroll: null,
   modal: null,
@@ -1535,9 +1537,15 @@ function bindEvents() {
     state.search = event.target.value;
     render();
   });
+  bindCategoryScroller();
   document.querySelectorAll("[data-category]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      if (Date.now() < state.categoryDragSuppressUntil) {
+        event.preventDefault();
+        return;
+      }
       state.selectedCategory = button.dataset.category;
+      state.categoryScrollLeft = document.querySelector(".category-strip")?.scrollLeft || state.categoryScrollLeft;
       render();
     });
   });
@@ -1626,6 +1634,85 @@ function bindEvents() {
     resetRecaptcha();
     render();
   });
+}
+
+function bindCategoryScroller() {
+  const strip = document.querySelector(".category-strip");
+  const shell = document.querySelector(".category-scroll-shell");
+  if (!strip || !shell) return;
+
+  requestAnimationFrame(() => {
+    strip.scrollLeft = state.categoryScrollLeft || 0;
+  });
+
+  let startX = 0;
+  let startScroll = 0;
+  let dragging = false;
+  let moved = false;
+
+  const moveTo = (clientX, event) => {
+    if (!dragging) return;
+    const delta = clientX - startX;
+    if (Math.abs(delta) > 3) {
+      moved = true;
+      state.categoryDragSuppressUntil = Date.now() + 350;
+      event?.preventDefault?.();
+    }
+    strip.scrollLeft = startScroll - delta;
+    state.categoryScrollLeft = strip.scrollLeft;
+  };
+
+  const stop = () => {
+    dragging = false;
+    strip.classList.remove("dragging");
+    if (moved) state.categoryDragSuppressUntil = Date.now() + 350;
+  };
+
+  shell.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    moved = false;
+    startX = event.clientX;
+    startScroll = strip.scrollLeft;
+    shell.setPointerCapture?.(event.pointerId);
+    strip.classList.add("dragging");
+  });
+  shell.addEventListener("pointermove", (event) => moveTo(event.clientX, event));
+  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => shell.addEventListener(eventName, stop));
+
+  shell.addEventListener("mousedown", (event) => {
+    dragging = true;
+    moved = false;
+    startX = event.clientX;
+    startScroll = strip.scrollLeft;
+    strip.classList.add("dragging");
+  });
+  window.addEventListener("mousemove", (event) => moveTo(event.clientX, event));
+  window.addEventListener("mouseup", stop);
+
+  shell.addEventListener("touchstart", (event) => {
+    if (!event.touches.length) return;
+    dragging = true;
+    moved = false;
+    startX = event.touches[0].clientX;
+    startScroll = strip.scrollLeft;
+    strip.classList.add("dragging");
+  }, { passive: true });
+  shell.addEventListener("touchmove", (event) => {
+    if (!event.touches.length) return;
+    moveTo(event.touches[0].clientX, event);
+  }, { passive: false });
+  ["touchend", "touchcancel"].forEach((eventName) => shell.addEventListener(eventName, stop));
+
+  strip.addEventListener("scroll", () => {
+    state.categoryScrollLeft = strip.scrollLeft;
+  }, { passive: true });
+  strip.addEventListener("wheel", (event) => {
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (!delta) return;
+    strip.scrollLeft += delta;
+    state.categoryScrollLeft = strip.scrollLeft;
+    event.preventDefault();
+  }, { passive: false });
 }
 
 async function handleAction(action, label) {
