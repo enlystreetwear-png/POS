@@ -438,6 +438,25 @@ textarea:focus {
   scrollbar-width: thin;
 }
 
+.category-scroll-shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-scroll-button {
+  display: none;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--brand);
+}
+
 .category-chip {
   flex: 0 0 auto;
   min-height: 36px;
@@ -1753,11 +1772,15 @@ textarea:focus {
 
   .app-shell {
     background: #f8fafc;
+    width: 100%;
+    max-width: 100vw;
     overflow-x: hidden;
   }
 
   .main {
-    padding: 10px 10px 180px;
+    width: 100%;
+    max-width: 100vw;
+    padding: 8px 8px 180px;
     overflow-x: hidden;
   }
 
@@ -1776,6 +1799,7 @@ textarea:focus {
   }
 
   .panel {
+    width: 100%;
     max-width: 100%;
     box-sizing: border-box;
     padding: 10px;
@@ -1812,22 +1836,54 @@ textarea:focus {
     min-width: 0;
   }
 
-  .category-strip {
+  .category-scroll-shell {
     position: sticky;
     z-index: 5;
     top: 72px;
-    width: calc(100% + 20px);
-    max-width: calc(100% + 20px);
+    width: 100%;
     min-width: 0;
-    margin: 0 -10px 10px;
-    padding: 0 10px 10px;
-    background: linear-gradient(180deg, #ffffff 70%, rgba(255, 255, 255, 0));
+    margin: 0 0 10px;
+    padding: 0;
+    background: linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
+  }
+
+  .category-scroll-button {
+    display: grid;
+    width: 30px;
+    height: 34px;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .category-strip {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0 0 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+    background: transparent;
+  }
+
+  .category-strip.dragging {
+    cursor: grabbing;
+    scroll-snap-type: none;
   }
 
   .category-chip {
     min-height: 34px;
     padding: 7px 11px;
     font-size: 12px;
+    scroll-snap-align: start;
   }
 
   .pos-grid {
@@ -1870,24 +1926,48 @@ textarea:focus {
 
   .table-hero {
     min-height: 0;
-    padding: 14px;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 10px 12px;
+    gap: 10px;
   }
 
   .table-hero h3 {
-    font-size: 24px;
+    margin: 2px 0 3px;
+    font-size: 20px;
   }
 
   .table-hero p {
-    font-size: 13px;
+    max-width: 230px;
+    font-size: 11.5px;
+    line-height: 1.25;
+  }
+
+  .table-hero .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0;
   }
 
   .table-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
   .table-summary {
     min-width: 0;
+    width: 88px;
+    padding: 7px 9px;
+  }
+
+  .table-summary strong {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .table-summary span {
+    font-size: 11px;
+    line-height: 1.1;
   }
 
   .table-tools {
@@ -1914,10 +1994,15 @@ textarea:focus {
 
   .table-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     gap: 8px;
   }
 
   .table-card {
+    width: 100%;
+    min-width: 0;
     min-height: 118px;
     padding: 10px;
   }
@@ -1933,7 +2018,7 @@ textarea:focus {
   }
 
   .product-grid {
-    grid-template-columns: repeat(2, minmax(0, calc((100vw - 48px) / 2)));
+    grid-template-columns: repeat(2, minmax(0, calc((100vw - 52px) / 2)));
     width: 100%;
     max-width: 100%;
     min-width: 0;
