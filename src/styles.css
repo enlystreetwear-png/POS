@@ -1894,6 +1894,10 @@ textarea:focus {
     display: none;
   }
 
+  .pos-grid.cart-open {
+    min-height: calc(100dvh - 86px - env(safe-area-inset-bottom));
+  }
+
   .dashboard-grid,
   .dashboard-split,
   .form-grid,
@@ -2064,7 +2068,10 @@ textarea:focus {
   }
 
   .bill-panel.mobile-cart-open {
-    display: flex;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: calc(100dvh - 92px - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 92px - env(safe-area-inset-bottom));
   }
 
   .bill-heading {
@@ -2093,9 +2100,10 @@ textarea:focus {
   .bill-scroll {
     width: 100%;
     min-width: 0;
-    max-height: 29vh;
+    min-height: 0;
+    max-height: none;
     overflow: auto;
-    padding-right: 0;
+    padding: 0 0 8px;
   }
 
   .cart-list {
@@ -2104,7 +2112,17 @@ textarea:focus {
 
   .cart-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 8px;
+    padding: 9px;
+  }
+
+  .cart-row h4 {
+    font-size: 14px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .cart-row p {
+    font-size: 12px;
   }
 
   .qty-controls button {
@@ -2113,8 +2131,8 @@ textarea:focus {
   }
 
   .bill-footer {
-    position: sticky;
-    bottom: calc(154px + env(safe-area-inset-bottom));
+    position: static;
+    bottom: auto;
     box-sizing: border-box;
     padding: 9px;
     width: 100%;
@@ -2124,6 +2142,10 @@ textarea:focus {
     border: 1px solid var(--line);
     border-radius: 8px;
     box-shadow: 0 -12px 28px rgba(17, 24, 39, 0.14);
+  }
+
+  .pos-grid.cart-open .mobile-cart-button {
+    display: none;
   }
 
   .bill-form {
