@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260523-mobile-cart";
+const assetVersion = "20260523-mobile-fit";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -469,14 +469,29 @@ function renderNav(className) {
     ["sales", "receipt-text", "Orders"],
     ["subscription", "badge-indian-rupee", "Plan"]
   ];
-  return `<nav class="${className}">${items.map(([view, iconName, label]) => `
-    <button class="${state.view === view ? "active" : ""}" data-view="${view}" title="${label}">
+  const mobileItems = [
+    ["pos", "utensils", "Tables"],
+    ["dashboard", "layout-dashboard", "Dashboard"],
+    ["operations", "sliders-horizontal", "Operations"],
+    ["reports", "chart-line", "Reports"],
+    ["settings", "settings", "Settings"]
+  ];
+  const visibleItems = className === "mobile-nav" ? mobileItems : items;
+  const activeView = className === "mobile-nav" ? mobileActiveView() : state.view;
+  return `<nav class="${className}">${visibleItems.map(([view, iconName, label]) => `
+    <button class="${activeView === view ? "active" : ""}" data-view="${view}" title="${label}">
       ${icon(iconName)} <span>${label}</span>
     </button>`).join("")}</nav>`;
 }
 
 function renderMobileNav() {
   return renderNav("mobile-nav");
+}
+
+function mobileActiveView() {
+  if (["products", "customers", "sales"].includes(state.view)) return "operations";
+  if (state.view === "subscription") return "settings";
+  return state.view;
 }
 
 function renderTopbar() {
@@ -567,7 +582,7 @@ function renderDashboard() {
       ${metric("Average Bill", money(avgBill), "chart-no-axes-column")}
     </section>
     <section class="grid dashboard-split">
-      <div class="panel">
+      <div class="panel menu-panel">
         <div class="panel-header"><h3>Today control center</h3><div class="toolbar"><button class="button secondary" id="export-backup">${icon("download")} Backup</button><button class="button" id="close-shift">${icon("badge-check")} Close shift</button></div></div>
         <div class="ops-grid compact">
           ${statusTile("Open bills", openTables.length, "circle-dot")}
@@ -1122,6 +1137,15 @@ function renderOutletSettings() {
     ]]
   ];
   return `
+    <section class="panel settings-panel mobile-more-panel">
+      <div class="panel-header"><h3>Mobile Shortcuts</h3></div>
+      <div class="settings-grid">
+        <button class="setting-card" data-view="products">${icon("book-open")}<span><strong>Menu setup</strong><small>Items, prices, stock and images.</small></span></button>
+        <button class="setting-card" data-view="customers">${icon("users")}<span><strong>Guests</strong><small>Customer names and visit records.</small></span></button>
+        <button class="setting-card" data-view="sales">${icon("receipt-text")}<span><strong>Orders</strong><small>Invoice history and receipt reprints.</small></span></button>
+        <button class="setting-card" data-view="subscription">${icon("badge-indian-rupee")}<span><strong>Plan</strong><small>Annual license and renewal status.</small></span></button>
+      </div>
+    </section>
     <section class="panel settings-panel">
       <div class="panel-header"><h3>Billing Workflow</h3></div>
       <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>

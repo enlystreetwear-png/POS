@@ -1406,6 +1406,10 @@ textarea:focus {
   display: none;
 }
 
+.mobile-more-panel {
+  display: none;
+}
+
 .ops-panel,
 .settings-panel {
   margin-bottom: 16px;
@@ -1672,21 +1676,28 @@ textarea:focus {
   .mobile-nav {
     z-index: 20;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     background: linear-gradient(135deg, #050505, #111111);
-    padding: 8px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     gap: 6px;
   }
 
   .mobile-nav button {
-    min-height: 48px;
+    min-height: 56px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 4px;
     border-radius: 8px;
     background: transparent;
     color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+    font-weight: 800;
   }
 
   .mobile-nav span {
-    display: none;
+    display: block;
+    line-height: 1;
   }
 
   .mobile-nav button.active {
@@ -1756,13 +1767,12 @@ textarea:focus {
   }
 
   .mobile-nav {
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 -18px 38px rgba(17, 24, 39, 0.22);
   }
 
   .mobile-nav button {
-    min-height: 46px;
+    min-height: 58px;
   }
 
   .panel {
@@ -1806,6 +1816,9 @@ textarea:focus {
     position: sticky;
     z-index: 5;
     top: 72px;
+    width: calc(100% + 20px);
+    max-width: calc(100% + 20px);
+    min-width: 0;
     margin: 0 -10px 10px;
     padding: 0 10px 10px;
     background: linear-gradient(180deg, #ffffff 70%, rgba(255, 255, 255, 0));
@@ -1818,7 +1831,15 @@ textarea:focus {
   }
 
   .pos-grid {
+    width: 100%;
+    min-width: 0;
     gap: 10px;
+  }
+
+  .menu-panel {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .pos-grid.cart-open > .panel:first-child {
@@ -1912,10 +1933,13 @@ textarea:focus {
   }
 
   .product-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, calc((100vw - 48px) / 2)));
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow: hidden;
-    gap: 8px;
+    gap: 7px;
+    justify-content: start;
   }
 
   .product-card {
@@ -1927,18 +1951,18 @@ textarea:focus {
   }
 
   .product-art {
-    aspect-ratio: 1 / 0.72;
-    font-size: 22px;
+    aspect-ratio: 1 / 0.62;
+    font-size: 19px;
   }
 
   .product-body {
-    padding: 9px;
+    padding: 8px;
   }
 
   .product-body h4 {
-    min-height: 34px;
-    font-size: 13px;
-    line-height: 1.25;
+    min-height: 32px;
+    font-size: 12px;
+    line-height: 1.22;
     overflow-wrap: anywhere;
   }
 
@@ -1946,7 +1970,7 @@ textarea:focus {
     align-items: flex-start;
     flex-direction: column;
     gap: 2px;
-    font-size: 11px;
+    font-size: 10.5px;
   }
 
   .bill-panel {
@@ -2013,7 +2037,7 @@ textarea:focus {
 
   .bill-footer {
     position: sticky;
-    bottom: calc(124px + env(safe-area-inset-bottom));
+    bottom: calc(154px + env(safe-area-inset-bottom));
     box-sizing: border-box;
     padding: 9px;
     width: 100%;
@@ -2070,7 +2094,7 @@ textarea:focus {
     position: fixed;
     left: 10px;
     right: 10px;
-    bottom: calc(114px + env(safe-area-inset-bottom));
+    bottom: calc(88px + env(safe-area-inset-bottom));
     z-index: 19;
     min-height: 54px;
     display: flex;
@@ -2094,6 +2118,10 @@ textarea:focus {
   .mobile-cart-button strong {
     font-size: 14px;
     white-space: nowrap;
+  }
+
+  .mobile-more-panel {
+    display: block;
   }
 
   .table-context {
