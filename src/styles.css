@@ -383,6 +383,26 @@ button {
   line-height: 42px;
 }
 
+.menu-titlebar {
+  width: 100%;
+}
+
+.menu-context {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.menu-context h3 {
+  line-height: 1.1;
+}
+
+.menu-context span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .button.compact {
   min-height: 38px;
   padding: 8px 12px;
@@ -1415,7 +1435,8 @@ textarea:focus {
 }
 
 .mobile-cart-button,
-.mobile-menu-back {
+.mobile-menu-back,
+.mobile-table-context {
   display: none;
 }
 
@@ -1822,12 +1843,31 @@ textarea:focus {
   }
 
   .menu-titlebar h3 {
-    line-height: 38px;
+    line-height: 1.1;
     font-size: 20px;
+  }
+
+  .menu-context span {
+    display: block;
   }
 
   .search {
     min-width: 0;
+  }
+
+  .mobile-table-context {
+    display: block;
+    width: fit-content;
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mobile-table-context strong {
+    color: var(--brand);
   }
 
   .category-scroll-shell {
@@ -2122,6 +2162,10 @@ textarea:focus {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .cart-table-title {
+    display: none;
   }
 
   .bill-customer-field .input {

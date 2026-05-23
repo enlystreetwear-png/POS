@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-mobile-cart-back";
+const assetVersion = "20260524-mobile-table-context";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -663,9 +663,13 @@ function renderPOS() {
         <div class="panel-header menu-panel-header">
           <div class="toolbar menu-titlebar">
             <button class="button secondary compact" id="back-to-tables">${icon("arrow-left")} Tables</button>
-            <h3>Menu</h3>
+            <div class="menu-context">
+              <h3>Menu</h3>
+              <span>${table?.name || "Table"}</span>
+            </div>
           </div>
           <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${escapeAttr(state.search)}">
+          <div class="mobile-table-context">Billing for <strong>${escapeAttr(table?.name || "Table")}</strong></div>
         </div>
         <div class="category-scroll-shell">
           <div class="category-strip">
@@ -683,7 +687,7 @@ function renderPOS() {
       <aside class="panel bill-panel ${state.mobileCartOpen ? "mobile-cart-open" : ""}">
         <div class="panel-header bill-heading">
           <div class="bill-title-stack">
-            <h3>${table?.name || "Current bill"}</h3>
+            <h3 class="cart-table-title">${table?.name || "Current bill"}</h3>
             <label class="bill-customer-field">
               <input class="input" id="bill-customer-name" list="customer-suggestions" value="${escapeAttr(draft.customerName)}" placeholder="Walk-in Customer">
             </label>
