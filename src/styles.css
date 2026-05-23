@@ -2075,6 +2075,10 @@ textarea:focus {
   }
 
   .bill-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: start;
+    gap: 6px;
     width: 100%;
     min-width: 0;
     position: sticky;
@@ -2086,15 +2090,36 @@ textarea:focus {
 
   .mobile-menu-back {
     display: inline-flex;
+    min-width: 74px;
+    min-height: 38px;
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+
+  .bill-heading .icon-button {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+  }
+
+  .bill-title-stack {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    min-width: 0;
   }
 
   .bill-title-stack h3 {
     padding-bottom: 0;
-    font-size: 20px;
+    font-size: 18px;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .bill-customer-field .input {
     min-height: 38px;
+    padding: 8px 10px;
   }
 
   .bill-scroll {
