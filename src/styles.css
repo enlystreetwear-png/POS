@@ -2057,12 +2057,12 @@ textarea:focus {
   .bill-panel {
     display: none;
     order: 0;
-    width: calc(100vw - 20px);
-    max-width: calc(100vw - 20px);
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     margin-top: 0;
     border: 0;
-    background: transparent;
+    background: #f8fafc;
     box-shadow: none;
     overflow: visible;
   }
@@ -2076,35 +2076,42 @@ textarea:focus {
 
   .bill-heading {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
-    gap: 6px;
+    gap: 8px;
     width: 100%;
     min-width: 0;
     position: sticky;
     top: -10px;
     z-index: 7;
-    padding: 8px 0;
+    padding: 8px 0 10px;
     background: #f8fafc;
   }
 
   .mobile-menu-back {
     display: inline-flex;
-    min-width: 74px;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 72px;
+    min-width: 72px;
     min-height: 38px;
-    padding-inline: 10px;
+    padding-inline: 8px;
     white-space: nowrap;
+    font-size: 13px;
   }
 
   .bill-heading .icon-button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
     width: 38px;
     height: 38px;
     flex: 0 0 38px;
   }
 
   .bill-title-stack {
+    grid-column: 2;
     grid-template-columns: 1fr;
-    gap: 6px;
+    gap: 7px;
     min-width: 0;
   }
 
@@ -2118,8 +2125,9 @@ textarea:focus {
   }
 
   .bill-customer-field .input {
-    min-height: 38px;
+    min-height: 36px;
     padding: 8px 10px;
+    border-radius: 8px;
   }
 
   .bill-scroll {
@@ -2128,16 +2136,19 @@ textarea:focus {
     min-height: 0;
     max-height: none;
     overflow: auto;
-    padding: 0 0 8px;
+    padding: 2px 0 8px;
   }
 
   .cart-list {
-    gap: 8px;
+    gap: 7px;
   }
 
   .cart-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 9px;
+    gap: 8px;
+    padding: 10px;
+    border-color: rgba(229, 231, 235, 0.88);
+    box-shadow: 0 6px 16px rgba(17, 24, 39, 0.05);
   }
 
   .cart-row h4 {
@@ -2151,22 +2162,29 @@ textarea:focus {
   }
 
   .qty-controls button {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
+    background: #f3f4f6;
+  }
+
+  .qty-controls strong {
+    min-width: 20px;
+    text-align: center;
   }
 
   .bill-footer {
     position: static;
     bottom: auto;
     box-sizing: border-box;
-    padding: 9px;
+    padding: 10px;
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    margin: 8px 0 0;
+    margin: 6px 0 0;
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 -12px 28px rgba(17, 24, 39, 0.14);
+    background: #ffffff;
+    box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.1);
   }
 
   .pos-grid.cart-open .mobile-cart-button {

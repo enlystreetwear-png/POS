@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-mobile-cart-header";
+const assetVersion = "20260524-mobile-cart-back";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -691,7 +691,7 @@ function renderPOS() {
           <datalist id="customer-suggestions">
             ${state.data.customers.map((c) => `<option value="${escapeAttr(c.name)}"></option>`).join("")}
           </datalist>
-          <button class="button secondary compact mobile-menu-back" id="mobile-close-cart">${icon("utensils")} Menu</button>
+          <button class="button secondary compact mobile-menu-back" id="mobile-close-cart">← Back</button>
           <button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button>
         </div>
         <div class="bill-scroll">
