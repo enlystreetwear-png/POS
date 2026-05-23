@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-mobile-category-side-scroll-2";
+const assetVersion = "20260524-mobile-category-pc-like";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -88,6 +88,7 @@ const state = {
   selectedCategory: "All",
   categoryScrollLeft: 0,
   categoryDragSuppressUntil: 0,
+  categoryPointerMoved: false,
   mobileCartOpen: false,
   restoreMainScroll: null,
   modal: null,
@@ -1540,7 +1541,7 @@ function bindEvents() {
   bindCategoryScroller();
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.addEventListener("click", (event) => {
-      if (Date.now() < state.categoryDragSuppressUntil) {
+      if (state.categoryPointerMoved || Date.now() < state.categoryDragSuppressUntil) {
         event.preventDefault();
         return;
       }
@@ -1649,13 +1650,23 @@ function bindCategoryScroller() {
   let startScroll = 0;
   let dragging = false;
   let moved = false;
+  let moveResetTimer = 0;
+
+  const markMoved = () => {
+    moved = true;
+    state.categoryPointerMoved = true;
+    state.categoryDragSuppressUntil = Date.now() + 900;
+    window.clearTimeout(moveResetTimer);
+    moveResetTimer = window.setTimeout(() => {
+      state.categoryPointerMoved = false;
+    }, 900);
+  };
 
   const moveTo = (clientX, event) => {
     if (!dragging) return;
     const delta = clientX - startX;
-    if (Math.abs(delta) > 3) {
-      moved = true;
-      state.categoryDragSuppressUntil = Date.now() + 350;
+    if (Math.abs(delta) > 7) {
+      markMoved();
       event?.preventDefault?.();
     }
     strip.scrollLeft = startScroll - delta;
@@ -1665,8 +1676,14 @@ function bindCategoryScroller() {
   const stop = () => {
     dragging = false;
     strip.classList.remove("dragging");
-    if (moved) state.categoryDragSuppressUntil = Date.now() + 350;
+    if (moved) markMoved();
   };
+
+  strip.addEventListener("click", (event) => {
+    if (!state.categoryPointerMoved && Date.now() >= state.categoryDragSuppressUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 
   shell.addEventListener("pointerdown", (event) => {
     dragging = true;

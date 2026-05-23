@@ -461,6 +461,15 @@ textarea:focus {
   color: #ffffff;
 }
 
+.category-chip:focus {
+  outline: none;
+}
+
+.category-chip:focus-visible {
+  outline: 2px solid rgba(17, 24, 39, 0.3);
+  outline-offset: 2px;
+}
+
 .report-search {
   min-width: min(240px, 100%);
 }
@@ -1831,7 +1840,9 @@ textarea:focus {
     padding: 0;
     overflow: hidden;
     touch-action: pan-x;
-    background: linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
+    background:
+      linear-gradient(90deg, #ffffff 0, rgba(255, 255, 255, 0) 18px, rgba(255, 255, 255, 0) calc(100% - 18px), #ffffff 100%),
+      linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
   }
 
   .category-strip {
@@ -1848,6 +1859,7 @@ textarea:focus {
     overflow-y: hidden;
     overscroll-behavior-inline: contain;
     scrollbar-width: thin;
+    cursor: grab;
     touch-action: pan-x;
     -webkit-overflow-scrolling: touch;
     background: transparent;
