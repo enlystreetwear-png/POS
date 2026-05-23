@@ -439,22 +439,7 @@ textarea:focus {
 }
 
 .category-scroll-shell {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.category-scroll-button {
-  display: none;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--brand);
+  min-width: 0;
 }
 
 .category-chip {
@@ -1845,14 +1830,6 @@ textarea:focus {
     margin: 0 0 10px;
     padding: 0;
     background: linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
-  }
-
-  .category-scroll-button {
-    display: grid;
-    width: 30px;
-    height: 34px;
-    padding: 0;
-    box-shadow: none;
   }
 
   .category-strip {

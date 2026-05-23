@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-mobile-category-rail";
+const assetVersion = "20260524-mobile-category-clean";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -665,7 +665,6 @@ function renderPOS() {
           <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${escapeAttr(state.search)}">
         </div>
         <div class="category-scroll-shell">
-          <button class="category-scroll-button" data-category-scroll="-1" title="Previous categories">${icon("chevron-left")}</button>
           <div class="category-strip">
             ${categories.map((category) => `
               <button class="category-chip ${category === state.selectedCategory ? "active" : ""}" data-category="${escapeAttr(category)}">
@@ -673,7 +672,6 @@ function renderPOS() {
               </button>
             `).join("")}
           </div>
-          <button class="category-scroll-button" data-category-scroll="1" title="Next categories">${icon("chevron-right")}</button>
         </div>
         <div class="grid product-grid">
           ${filtered.map(renderProductCard).join("") || `<div class="empty">No products found</div>`}
@@ -1634,13 +1632,6 @@ function bindEvents() {
 function bindCategoryScroller() {
   const strip = document.querySelector(".category-strip");
   if (!strip) return;
-
-  document.querySelectorAll("[data-category-scroll]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const direction = Number(button.dataset.categoryScroll || 1);
-      strip.scrollBy({ left: direction * Math.max(150, strip.clientWidth * 0.72), behavior: "smooth" });
-    });
-  });
 
   let startX = 0;
   let startScroll = 0;
