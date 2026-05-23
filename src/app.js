@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260523-mobile-pos";
+const assetVersion = "20260523-mobile-cart";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -86,6 +86,7 @@ const state = {
   billDrafts: {},
   search: "",
   selectedCategory: "All",
+  mobileCartOpen: false,
   restoreMainScroll: null,
   modal: null,
   authError: "",
@@ -349,7 +350,10 @@ function totals(cart = currentCart()) {
 
 function setView(view) {
   state.view = view;
-  if (view === "pos") state.selectedTableId = "";
+  if (view === "pos") {
+    state.selectedTableId = "";
+    state.mobileCartOpen = false;
+  }
   state.modal = null;
   render();
 }
@@ -632,9 +636,11 @@ function renderPOS() {
   const table = selectedTable();
   const cart = currentCart();
   const draft = currentBillDraft();
+  const itemCount = cart.reduce((sum, item) => sum + item.qty, 0);
+  const current = totals(cart);
   return `
     ${locked ? renderSubscriptionBanner() : ""}
-    <section class="grid pos-grid">
+    <section class="grid pos-grid ${state.mobileCartOpen ? "cart-open" : ""}">
       <div class="panel">
         <div class="panel-header menu-panel-header">
           <div class="toolbar menu-titlebar">
@@ -654,7 +660,7 @@ function renderPOS() {
           ${filtered.map(renderProductCard).join("") || `<div class="empty">No products found</div>`}
         </div>
       </div>
-      <aside class="panel bill-panel">
+      <aside class="panel bill-panel ${state.mobileCartOpen ? "mobile-cart-open" : ""}">
         <div class="panel-header bill-heading">
           <div class="bill-title-stack">
             <h3>${table?.name || "Current bill"}</h3>
@@ -665,6 +671,7 @@ function renderPOS() {
           <datalist id="customer-suggestions">
             ${state.data.customers.map((c) => `<option value="${escapeAttr(c.name)}"></option>`).join("")}
           </datalist>
+          <button class="button secondary compact mobile-menu-back" id="mobile-close-cart">${icon("utensils")} Menu</button>
           <button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button>
         </div>
         <div class="bill-scroll">
@@ -684,6 +691,10 @@ function renderPOS() {
           </div>
         </div>
       </aside>
+      <button class="mobile-cart-button" id="mobile-cart-toggle">
+        <span>${icon(state.mobileCartOpen ? "utensils" : "shopping-cart")} ${state.mobileCartOpen ? "Back to menu" : "Cart"}</span>
+        <strong>${itemCount} item${itemCount === 1 ? "" : "s"} • ${money(current.total)}</strong>
+      </button>
     </section>
   `;
 }
@@ -1473,17 +1484,27 @@ function bindEvents() {
   document.querySelectorAll("[data-table]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedTableId = button.dataset.table;
+      state.mobileCartOpen = false;
       render();
     });
   });
   document.querySelector("#quick-takeaway")?.addEventListener("click", () => {
     state.selectedTableId = state.data.tables.find((table) => table.name.toLowerCase() === "takeaway")?.id || state.data.tables[0]?.id || "";
+    state.mobileCartOpen = false;
     render();
   });
   document.querySelector("#view-kots")?.addEventListener("click", () => handleAction("kots", "KOTs"));
   document.querySelector("#add-table")?.addEventListener("click", addTable);
   document.querySelector("#remove-table")?.addEventListener("click", removeTable);
   document.querySelector("#back-to-tables")?.addEventListener("click", backToTables);
+  document.querySelector("#mobile-cart-toggle")?.addEventListener("click", () => {
+    state.mobileCartOpen = !state.mobileCartOpen;
+    render();
+  });
+  document.querySelector("#mobile-close-cart")?.addEventListener("click", () => {
+    state.mobileCartOpen = false;
+    render();
+  });
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
     render();
@@ -1507,6 +1528,7 @@ function bindEvents() {
     if (tableId) syncActiveKotsWithTable(tableId, []);
     if (state.pendingBill?.tableId === tableId) state.pendingBill = null;
     state.selectedTableId = "";
+    state.mobileCartOpen = false;
     setToast(hadItems ? "Table bill cleared" : "Returned to tables");
     render();
     try {
@@ -1804,11 +1826,13 @@ async function backToTables() {
     delete state.data.openBills[tableId];
     delete state.billDrafts?.[tableId];
     state.selectedTableId = "";
+    state.mobileCartOpen = false;
     await persistSafely("Unsaved table items cleared", "Items cleared locally. Cloud sync failed.");
     render();
     return;
   }
   state.selectedTableId = "";
+  state.mobileCartOpen = false;
   render();
 }
 
@@ -1872,7 +1896,10 @@ async function removeTable() {
   if (!confirm(`Remove ${table.name}?`)) return;
   state.data.tables = state.data.tables.filter((item) => item.id !== table.id);
   delete state.data.openBills[table.id];
-  if (state.selectedTableId === table.id) state.selectedTableId = "";
+  if (state.selectedTableId === table.id) {
+    state.selectedTableId = "";
+    state.mobileCartOpen = false;
+  }
   await persistSafely("Table removed", "Table removed locally. Cloud sync failed.");
   render();
 }
@@ -1947,6 +1974,7 @@ async function completeSale(sale, tableId, customer) {
     delete state.billDrafts?.[tableId];
     state.pendingBill = null;
     state.selectedTableId = "";
+    state.mobileCartOpen = false;
     writeLocal();
     if (!state.data.settings.saveBillAfterPrint) autoPrint(receiptMarkup(sale));
     await persist();

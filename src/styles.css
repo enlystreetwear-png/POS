@@ -1401,6 +1401,11 @@ textarea:focus {
   display: none;
 }
 
+.mobile-cart-button,
+.mobile-menu-back {
+  display: none;
+}
+
 .ops-panel,
 .settings-panel {
   margin-bottom: 16px;
@@ -1741,7 +1746,7 @@ textarea:focus {
   }
 
   .main {
-    padding: 10px 10px 92px;
+    padding: 10px 10px 180px;
     overflow-x: hidden;
   }
 
@@ -1814,6 +1819,10 @@ textarea:focus {
 
   .pos-grid {
     gap: 10px;
+  }
+
+  .pos-grid.cart-open > .panel:first-child {
+    display: none;
   }
 
   .dashboard-grid,
@@ -1904,10 +1913,15 @@ textarea:focus {
 
   .product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    overflow: hidden;
     gap: 8px;
   }
 
   .product-card {
+    width: 100%;
+    min-width: 0;
+    display: block;
     border-radius: 8px;
     box-shadow: 0 8px 18px rgba(17, 24, 39, 0.08);
   }
@@ -1925,6 +1939,7 @@ textarea:focus {
     min-height: 34px;
     font-size: 13px;
     line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
   .product-meta {
@@ -1935,25 +1950,34 @@ textarea:focus {
   }
 
   .bill-panel {
-    order: -1;
+    display: none;
+    order: 0;
     width: calc(100vw - 20px);
     max-width: calc(100vw - 20px);
     min-width: 0;
-    margin-top: 12px;
+    margin-top: 0;
     border: 0;
     background: transparent;
     box-shadow: none;
     overflow: visible;
   }
 
+  .bill-panel.mobile-cart-open {
+    display: flex;
+  }
+
   .bill-heading {
     width: 100%;
     min-width: 0;
     position: sticky;
-    top: 0;
+    top: -10px;
     z-index: 7;
     padding: 8px 0;
     background: #f8fafc;
+  }
+
+  .mobile-menu-back {
+    display: inline-flex;
   }
 
   .bill-title-stack h3 {
@@ -1988,7 +2012,8 @@ textarea:focus {
   }
 
   .bill-footer {
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    position: sticky;
+    bottom: calc(124px + env(safe-area-inset-bottom));
     box-sizing: border-box;
     padding: 9px;
     width: 100%;
@@ -2037,6 +2062,36 @@ textarea:focus {
     min-width: 0;
     min-height: 44px;
     padding-inline: 8px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .mobile-cart-button {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(114px + env(safe-area-inset-bottom));
+    z-index: 19;
+    min-height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #111111;
+    color: #ffffff;
+    box-shadow: 0 -12px 32px rgba(17, 24, 39, 0.28);
+  }
+
+  .mobile-cart-button span,
+  .mobile-cart-button strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-cart-button strong {
     font-size: 14px;
     white-space: nowrap;
   }
