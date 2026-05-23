@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-mobile-category-clean";
+const assetVersion = "20260524-mobile-category-wrap";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -591,7 +591,7 @@ function renderDashboard() {
           ${statusTile("Last close", lastClosingLabel(), "clock")}
         </div>
       </div>
-      <div class="panel">
+      <div class="panel menu-panel">
         <div class="panel-header"><h3>Business health</h3><button class="button secondary" data-action="backup-restore" data-action-label="Backup & Restore">${icon("shield-check")} Data tools</button></div>
         <div class="health-list">${health.map((item) => `
           <div class="health-row ${item.status}">
@@ -1535,7 +1535,6 @@ function bindEvents() {
     state.search = event.target.value;
     render();
   });
-  bindCategoryScroller();
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedCategory = button.dataset.category;
@@ -1626,32 +1625,6 @@ function bindEvents() {
     localStorage.removeItem(googleRedirectSessionKey);
     resetRecaptcha();
     render();
-  });
-}
-
-function bindCategoryScroller() {
-  const strip = document.querySelector(".category-strip");
-  if (!strip) return;
-
-  let startX = 0;
-  let startScroll = 0;
-  let dragging = false;
-  strip.addEventListener("pointerdown", (event) => {
-    dragging = true;
-    startX = event.clientX;
-    startScroll = strip.scrollLeft;
-    strip.setPointerCapture?.(event.pointerId);
-    strip.classList.add("dragging");
-  });
-  strip.addEventListener("pointermove", (event) => {
-    if (!dragging) return;
-    strip.scrollLeft = startScroll - (event.clientX - startX);
-  });
-  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
-    strip.addEventListener(eventName, () => {
-      dragging = false;
-      strip.classList.remove("dragging");
-    });
   });
 }
 

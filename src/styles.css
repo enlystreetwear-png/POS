@@ -1829,38 +1829,33 @@ textarea:focus {
     min-width: 0;
     margin: 0 0 10px;
     padding: 0;
+    overflow: hidden;
     background: linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
   }
 
   .category-strip {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     margin: 0;
-    padding: 0 0 8px;
-    overflow-x: auto;
+    padding: 0 0 6px;
+    overflow-x: hidden;
     overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    touch-action: pan-x;
-    -webkit-overflow-scrolling: touch;
     background: transparent;
   }
 
   .category-strip.dragging {
-    cursor: grabbing;
-    scroll-snap-type: none;
+    user-select: none;
   }
 
   .category-chip {
+    flex: 0 0 auto;
     min-height: 34px;
-    padding: 7px 11px;
-    font-size: 12px;
-    scroll-snap-align: start;
+    padding: 7px 10px;
+    font-size: 11.5px;
   }
 
   .pos-grid {
