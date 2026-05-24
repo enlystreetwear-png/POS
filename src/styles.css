@@ -398,9 +398,7 @@ button {
 }
 
 .menu-context span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+  display: none;
 }
 
 .button.compact {
