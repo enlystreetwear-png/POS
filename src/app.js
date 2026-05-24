@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-recaptcha-timeout";
+const assetVersion = "20260525-mobile-phone-auth";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -2409,9 +2409,11 @@ async function ensureRecaptcha() {
   const container = document.querySelector("#recaptcha-container");
   if (!container) throw new Error("OTP security check could not load. Refresh the page and try again.");
   container.innerHTML = "";
+  const isMobileAuth = window.matchMedia("(max-width: 720px)").matches;
+  container.dataset.mode = isMobileAuth ? "compact" : "invisible";
   const { RecaptchaVerifier } = state.firebase.authMod;
   state.recaptchaVerifier = new RecaptchaVerifier(state.auth, "recaptcha-container", {
-    size: "invisible",
+    size: isMobileAuth ? "compact" : "invisible",
     callback: () => {
       state.authError = "";
     },
@@ -2434,7 +2436,10 @@ function resetRecaptcha() {
   }
   state.recaptchaVerifier = null;
   const container = document.querySelector("#recaptcha-container");
-  if (container) container.innerHTML = "";
+  if (container) {
+    container.innerHTML = "";
+    delete container.dataset.mode;
+  }
 }
 
 function withTimeout(promise, message, timeoutMs = authTimeoutMs) {

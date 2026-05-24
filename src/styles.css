@@ -1343,13 +1343,20 @@ textarea:focus {
   animation: spin 1s linear infinite;
 }
 
-#recaptcha-container {
+#recaptcha-container[data-mode="invisible"] {
   position: fixed;
   left: -9999px;
   bottom: 0;
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+
+#recaptcha-container[data-mode="compact"] {
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  margin: -2px 0 2px;
 }
 
 @keyframes spin {
