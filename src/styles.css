@@ -1294,6 +1294,10 @@ textarea:focus {
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.18);
 }
 
+.mobile-auth-brand {
+  display: none;
+}
+
 .auth-plan {
   display: flex;
   align-items: center;
@@ -1350,6 +1354,21 @@ textarea:focus {
   margin: -6px 0 2px;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.auth-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.auth-divider span {
+  height: 1px;
+  background: var(--line);
 }
 
 .auth-proof {
@@ -2144,6 +2163,103 @@ textarea:focus {
     flex-direction: column;
   }
 
+  .auth {
+    min-height: 100dvh;
+    height: auto;
+    display: flex;
+    justify-content: center;
+    overflow-x: hidden;
+    background: #ffffff;
+    padding: 18px 14px;
+  }
+
+  .auth-hero {
+    display: none;
+  }
+
+  .auth-card {
+    width: min(100%, 380px);
+    min-height: calc(100dvh - 36px);
+    justify-content: center;
+    gap: 12px;
+    padding: 18px 0;
+    background: #ffffff;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .mobile-auth-brand {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .mobile-auth-brand img {
+    width: 92px;
+    height: 92px;
+    object-fit: contain;
+  }
+
+  .mobile-auth-brand strong {
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: 0;
+    font-weight: 900;
+  }
+
+  .auth-card h2 {
+    margin: 0 0 4px;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  .auth-note {
+    max-width: 310px;
+    margin: 0 auto 6px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .auth-card .field {
+    gap: 6px;
+  }
+
+  .auth-card .field label {
+    display: none;
+  }
+
+  .auth-card .input {
+    height: 46px;
+    border-radius: 4px;
+    background: #fafafa;
+    border-color: #d8dde5;
+    font-size: 14px;
+  }
+
+  .auth-card .button {
+    min-height: 46px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .auth-card .button.google {
+    background: #ffffff;
+    color: #111111;
+    border-color: #d8dde5;
+  }
+
+  .auth-divider {
+    margin: 2px 0;
+  }
+
+  .auth-error,
+  .auth-loading {
+    border-radius: 6px;
+    font-size: 12px;
+  }
+
   .table-summary-grid,
   .bill-actions,
   .bill-title-stack,
@@ -2519,14 +2635,6 @@ textarea:focus {
 
   .plan-facts {
     grid-template-columns: 1fr;
-  }
-
-  .auth-hero {
-    min-height: 42vh;
-  }
-
-  .auth-card {
-    min-height: 58vh;
   }
 
   .ops-grid,

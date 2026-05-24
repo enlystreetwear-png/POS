@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-dashboard-polish";
+const assetVersion = "20260525-mobile-auth";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -411,6 +411,10 @@ function renderAuth() {
         </div>
       </section>
       <section class="auth-card">
+        <div class="mobile-auth-brand">
+          <img src="${markLightUrl}" alt="PondyPOS">
+          <strong>PondyPOS</strong>
+        </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
         ${waitingForFirebase ? `<div class="auth-loading">${icon("loader-circle")}<span>Connecting to Firebase. Login will be ready in a moment.</span></div>` : ""}
         <h2>Sign in with phone OTP</h2>
@@ -420,6 +424,7 @@ function renderAuth() {
         <div id="recaptcha-container"></div>
         <button class="button" id="${state.otpSent ? "verify-otp" : "send-otp"}" ${authDisabled ? "disabled" : ""}>${icon(state.otpSent ? "badge-check" : "smartphone")} ${otpText}</button>
         ${state.otpSent ? `<button class="button secondary" id="change-phone" ${state.authBusy ? "disabled" : ""}>${icon("rotate-ccw")} Change phone number</button>` : ""}
+        <div class="auth-divider"><span></span><strong>OR</strong><span></span></div>
         <button class="button google" id="google-signin" ${authDisabled ? "disabled" : ""}>${icon("chrome")} ${googleText}</button>
       </section>
     </main>
