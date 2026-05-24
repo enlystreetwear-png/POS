@@ -1343,6 +1343,15 @@ textarea:focus {
   animation: spin 1s linear infinite;
 }
 
+#recaptcha-container {
+  position: fixed;
+  left: -9999px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

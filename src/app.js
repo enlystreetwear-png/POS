@@ -3,11 +3,12 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-login-stability";
+const assetVersion = "20260525-recaptcha-timeout";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
 const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
+const authTimeoutMs = 15000;
 const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
 
@@ -2421,7 +2422,7 @@ async function ensureRecaptcha() {
       resetRecaptcha();
     }
   });
-  await state.recaptchaVerifier.render();
+  await withTimeout(state.recaptchaVerifier.render(), "OTP security check timed out. Reload and try again, or use Google login.");
   return state.recaptchaVerifier;
 }
 
@@ -2432,6 +2433,18 @@ function resetRecaptcha() {
     console.warn("Could not clear reCAPTCHA", error);
   }
   state.recaptchaVerifier = null;
+  const container = document.querySelector("#recaptcha-container");
+  if (container) container.innerHTML = "";
+}
+
+function withTimeout(promise, message, timeoutMs = authTimeoutMs) {
+  let timerId;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timerId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]).finally(() => window.clearTimeout(timerId));
 }
 
 async function sendPhoneOtp() {
@@ -2452,7 +2465,10 @@ async function sendPhoneOtp() {
   const { signInWithPhoneNumber } = state.firebase.authMod;
   try {
     const verifier = await ensureRecaptcha();
-    state.otpConfirmation = await signInWithPhoneNumber(state.auth, phone, verifier);
+    state.otpConfirmation = await withTimeout(
+      signInWithPhoneNumber(state.auth, phone, verifier),
+      "OTP request timed out. Reload and try again, or use Google login."
+    );
     state.otpSent = true;
     state.authBusy = false;
     state.authAction = "";
