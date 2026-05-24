@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-mobile-auth-gesture";
+const assetVersion = "20260525-mobile-auth-recovery";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -69,6 +69,7 @@ const state = {
   authReady: !hasFirebaseConfig(),
   authBusy: false,
   authAction: "",
+  authRequestId: 0,
   checkoutBusy: false,
   syncStatus: "idle",
   toast: null,
@@ -393,10 +394,11 @@ function render() {
 
 function renderAuth() {
   const waitingForFirebase = state.firebaseConfigured && !state.authReady;
-  const authDisabled = state.authBusy || waitingForFirebase;
   const sendingOtp = state.authBusy && state.authAction === "otp";
   const verifyingOtp = state.authBusy && state.authAction === "otpVerify";
   const redirectingGoogle = state.authBusy && state.authAction === "google";
+  const otpDisabled = state.authBusy || waitingForFirebase;
+  const googleDisabled = waitingForFirebase || verifyingOtp || redirectingGoogle;
   const otpText = verifyingOtp ? "Verifying..." : sendingOtp ? "Sending OTP..." : (state.otpSent ? "Verify OTP" : "Send OTP");
   const googleText = waitingForFirebase ? "Connecting to Firebase..." : redirectingGoogle ? "Redirecting to Google..." : "Continue with Google";
   return `
@@ -425,10 +427,11 @@ function renderAuth() {
         <div class="field"><label>Phone number</label><input class="input" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" value="${escapeAttr(state.phoneNumber || "")}" ${state.otpSent ? "disabled" : ""}></div>
         ${state.otpSent ? `<div class="field"><label>OTP code</label><input class="input" id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit OTP" maxlength="8"></div>` : ""}
         <div id="recaptcha-container"></div>
-        <button class="button" id="${state.otpSent ? "verify-otp" : "send-otp"}" ${authDisabled ? "disabled" : ""}>${icon(state.otpSent ? "badge-check" : "smartphone")} ${otpText}</button>
+        <button class="button" id="${state.otpSent ? "verify-otp" : "send-otp"}" ${otpDisabled ? "disabled" : ""}>${icon(state.otpSent ? "badge-check" : "smartphone")} ${otpText}</button>
+        ${sendingOtp ? `<button class="button secondary" id="reset-auth">${icon("rotate-ccw")} Try again</button>` : ""}
         ${state.otpSent ? `<button class="button secondary" id="change-phone" ${state.authBusy ? "disabled" : ""}>${icon("rotate-ccw")} Change phone number</button>` : ""}
         <div class="auth-divider"><span></span><strong>OR</strong><span></span></div>
-        <button class="button google" id="google-signin" ${authDisabled ? "disabled" : ""}>${icon("chrome")} ${googleText}</button>
+        <button class="button google" id="google-signin" ${googleDisabled ? "disabled" : ""}>${icon("chrome")} ${googleText}</button>
       </section>
     </main>
   `;
@@ -1676,6 +1679,7 @@ function bindEvents() {
   });
   document.querySelector("#send-otp")?.addEventListener("click", sendPhoneOtp);
   document.querySelector("#verify-otp")?.addEventListener("click", verifyPhoneOtp);
+  document.querySelector("#reset-auth")?.addEventListener("click", resetAuthAttempt);
   document.querySelector("#change-phone")?.addEventListener("click", resetPhoneOtp);
   document.querySelector("#google-signin")?.addEventListener("click", googleSignIn);
   document.querySelector("#signout")?.addEventListener("click", signOutCurrentUser);
@@ -2439,6 +2443,17 @@ function resetRecaptcha() {
   }
 }
 
+function resetAuthAttempt(message = "") {
+  state.authRequestId += 1;
+  state.authBusy = false;
+  state.authAction = "";
+  state.otpSent = false;
+  state.otpConfirmation = null;
+  state.authError = message;
+  resetRecaptcha();
+  render();
+}
+
 async function sendPhoneOtp() {
   if (state.authBusy) return;
   const phone = normalizePhoneNumber(document.querySelector("#phone")?.value);
@@ -2453,17 +2468,26 @@ async function sendPhoneOtp() {
   resetRecaptcha();
   state.authBusy = true;
   state.authAction = "otp";
+  const requestId = state.authRequestId + 1;
+  state.authRequestId = requestId;
   render();
+  window.setTimeout(() => {
+    if (state.authBusy && state.authAction === "otp" && state.authRequestId === requestId) {
+      resetAuthAttempt("OTP login is taking too long on this mobile view. Try again or continue with Google.");
+    }
+  }, 25000);
   const { signInWithPhoneNumber } = state.firebase.authMod;
   try {
     const verifier = ensureRecaptcha();
     state.otpConfirmation = await signInWithPhoneNumber(state.auth, phone, verifier);
+    if (state.authRequestId !== requestId) return;
     state.otpSent = true;
     state.authBusy = false;
     state.authAction = "";
     setToast("OTP sent");
     render();
   } catch (error) {
+    if (state.authRequestId !== requestId) return;
     resetRecaptcha();
     state.authBusy = false;
     state.authAction = "";
@@ -2503,15 +2527,11 @@ async function verifyPhoneOtp() {
 }
 
 function resetPhoneOtp() {
-  state.otpSent = false;
-  state.otpConfirmation = null;
-  state.authError = "";
-  state.authAction = "";
-  resetRecaptcha();
-  render();
+  resetAuthAttempt();
 }
 
 async function googleSignIn() {
+  if (state.authBusy && state.authAction === "otp") resetAuthAttempt();
   if (state.authBusy) return;
   state.authError = "";
   if (!ensureFirebaseAuthReady("Add Firebase config first, then enable Google sign-in in Firebase Authentication.")) return;
