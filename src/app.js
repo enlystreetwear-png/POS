@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-mobile-auth";
+const assetVersion = "20260525-login-stability";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -68,6 +68,7 @@ const state = {
   firebaseConfigured: hasFirebaseConfig(),
   authReady: !hasFirebaseConfig(),
   authBusy: false,
+  authAction: "",
   checkoutBusy: false,
   syncStatus: "idle",
   toast: null,
@@ -393,8 +394,11 @@ function render() {
 function renderAuth() {
   const waitingForFirebase = state.firebaseConfigured && !state.authReady;
   const authDisabled = state.authBusy || waitingForFirebase;
-  const otpText = state.authBusy ? (state.otpSent ? "Verifying..." : "Sending OTP...") : (state.otpSent ? "Verify OTP" : "Send OTP");
-  const googleText = waitingForFirebase ? "Connecting to Firebase..." : state.authBusy ? "Redirecting to Google..." : "Continue with Google";
+  const sendingOtp = state.authBusy && state.authAction === "otp";
+  const verifyingOtp = state.authBusy && state.authAction === "otpVerify";
+  const redirectingGoogle = state.authBusy && state.authAction === "google";
+  const otpText = verifyingOtp ? "Verifying..." : sendingOtp ? "Sending OTP..." : (state.otpSent ? "Verify OTP" : "Send OTP");
+  const googleText = waitingForFirebase ? "Connecting to Firebase..." : redirectingGoogle ? "Redirecting to Google..." : "Continue with Google";
   return `
     <main class="auth">
       <section class="auth-hero">
@@ -412,7 +416,7 @@ function renderAuth() {
       </section>
       <section class="auth-card">
         <div class="mobile-auth-brand">
-          <img src="${markLightUrl}" alt="PondyPOS">
+          <img src="${markLightUrl}" alt="">
           <strong>PondyPOS</strong>
         </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
@@ -1683,6 +1687,7 @@ async function signOutCurrentUser() {
   state.localSession = null;
   state.otpSent = false;
   state.otpConfirmation = null;
+  state.authAction = "";
   state.tenantId = "demo";
   state.data = readLocal("demo");
   state.selectedTableId = "";
@@ -2398,17 +2403,25 @@ function ensureFirebaseAuthReady(message) {
   return true;
 }
 
-function ensureRecaptcha() {
+async function ensureRecaptcha() {
   if (state.recaptchaVerifier) return state.recaptchaVerifier;
   const container = document.querySelector("#recaptcha-container");
   if (!container) throw new Error("OTP security check could not load. Refresh the page and try again.");
+  container.innerHTML = "";
   const { RecaptchaVerifier } = state.firebase.authMod;
   state.recaptchaVerifier = new RecaptchaVerifier(state.auth, "recaptcha-container", {
     size: "invisible",
     callback: () => {
       state.authError = "";
+    },
+    "expired-callback": () => {
+      resetRecaptcha();
+    },
+    "error-callback": () => {
+      resetRecaptcha();
     }
   });
+  await state.recaptchaVerifier.render();
   return state.recaptchaVerifier;
 }
 
@@ -2432,19 +2445,23 @@ async function sendPhoneOtp() {
   }
   if (!ensureFirebaseAuthReady("Add Firebase config first, then enable Phone sign-in in Firebase Authentication.")) return;
   state.phoneNumber = phone;
+  resetRecaptcha();
   state.authBusy = true;
+  state.authAction = "otp";
   render();
   const { signInWithPhoneNumber } = state.firebase.authMod;
   try {
-    const verifier = ensureRecaptcha();
+    const verifier = await ensureRecaptcha();
     state.otpConfirmation = await signInWithPhoneNumber(state.auth, phone, verifier);
     state.otpSent = true;
     state.authBusy = false;
+    state.authAction = "";
     setToast("OTP sent");
     render();
   } catch (error) {
     resetRecaptcha();
     state.authBusy = false;
+    state.authAction = "";
     state.authError = friendlyAuthError(error);
     render();
   }
@@ -2465,6 +2482,7 @@ async function verifyPhoneOtp() {
     return;
   }
   state.authBusy = true;
+  state.authAction = "otpVerify";
   render();
   try {
     const credential = await state.otpConfirmation.confirm(code);
@@ -2473,6 +2491,7 @@ async function verifyPhoneOtp() {
     await finishSignedInUser(credential.user);
   } catch (error) {
     state.authBusy = false;
+    state.authAction = "";
     state.authError = friendlyAuthError(error);
     render();
   }
@@ -2482,6 +2501,7 @@ function resetPhoneOtp() {
   state.otpSent = false;
   state.otpConfirmation = null;
   state.authError = "";
+  state.authAction = "";
   resetRecaptcha();
   render();
 }
@@ -2491,6 +2511,7 @@ async function googleSignIn() {
   state.authError = "";
   if (!ensureFirebaseAuthReady("Add Firebase config first, then enable Google sign-in in Firebase Authentication.")) return;
   state.authBusy = true;
+  state.authAction = "google";
   render();
   const { GoogleAuthProvider, signInWithRedirect } = state.firebase.authMod;
   const provider = new GoogleAuthProvider();
@@ -2501,6 +2522,7 @@ async function googleSignIn() {
   } catch (error) {
     localStorage.removeItem(googleRedirectSessionKey);
     state.authBusy = false;
+    state.authAction = "";
     state.authError = friendlyAuthError(error);
     render();
   }
@@ -2512,6 +2534,7 @@ async function finishSignedInUser(user) {
   rememberSignedInUser(user);
   state.authReady = true;
   state.authBusy = false;
+  state.authAction = "";
   render();
   try {
     await pullCloudData();
@@ -2541,6 +2564,10 @@ function rememberGoogleRedirectStart() {
 
 function friendlyAuthError(error) {
   const code = error?.code || "";
+  const message = String(error?.message || "");
+  if (message.toLowerCase().includes("recaptcha")) {
+    return "OTP security check could not connect. Reload the page and try again, or use Google login.";
+  }
   const messages = {
     "auth/configuration-not-found": "Firebase Authentication is not set up yet. Open Firebase Authentication and enable your sign-in providers.",
     "auth/captcha-check-failed": "OTP security check failed. Refresh the page and try again.",
@@ -2550,6 +2577,7 @@ function friendlyAuthError(error) {
     "auth/invalid-phone-number": "Enter a valid phone number with country code.",
     "auth/invalid-verification-code": "That OTP code is not correct. Check the SMS and try again.",
     "auth/missing-phone-number": "Enter your mobile number first.",
+    "auth/network-request-failed": "Network failed while starting login. Check internet and try again.",
     "auth/operation-not-allowed": "This login provider is disabled in Firebase Authentication. Enable Phone and Google providers.",
     "auth/popup-blocked": "The browser blocked the Google popup. Allow popups or try again.",
     "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",
