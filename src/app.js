@@ -1197,6 +1197,7 @@ function renderOutletSettings() {
         <button class="setting-card" data-view="sales">${icon("receipt-text")}<span><strong>Orders</strong><small>Invoice history and receipt reprints.</small></span></button>
         <button class="setting-card" data-view="subscription">${icon("badge-indian-rupee")}<span><strong>Plan</strong><small>Annual license and renewal status.</small></span></button>
       </div>
+      <button class="button warn mobile-signout-button" id="mobile-signout">${icon("log-out")} Sign out</button>
     </section>
     <section class="panel settings-panel">
       <div class="panel-header"><h3>Billing Workflow</h3></div>
@@ -1669,19 +1670,22 @@ function bindEvents() {
   document.querySelector("#verify-otp")?.addEventListener("click", verifyPhoneOtp);
   document.querySelector("#change-phone")?.addEventListener("click", resetPhoneOtp);
   document.querySelector("#google-signin")?.addEventListener("click", googleSignIn);
-  document.querySelector("#signout")?.addEventListener("click", async () => {
-    if (state.user) await state.auth.signOut();
-    state.localSession = null;
-    state.otpSent = false;
-    state.otpConfirmation = null;
-    state.tenantId = "demo";
-    state.data = readLocal("demo");
-    state.selectedTableId = "";
-    localStorage.removeItem("pondypos-session");
-    localStorage.removeItem(googleRedirectSessionKey);
-    resetRecaptcha();
-    render();
-  });
+  document.querySelector("#signout")?.addEventListener("click", signOutCurrentUser);
+  document.querySelector("#mobile-signout")?.addEventListener("click", signOutCurrentUser);
+}
+
+async function signOutCurrentUser() {
+  if (state.user) await state.auth.signOut();
+  state.localSession = null;
+  state.otpSent = false;
+  state.otpConfirmation = null;
+  state.tenantId = "demo";
+  state.data = readLocal("demo");
+  state.selectedTableId = "";
+  localStorage.removeItem("pondypos-session");
+  localStorage.removeItem(googleRedirectSessionKey);
+  resetRecaptcha();
+  render();
 }
 
 function bindCategoryScroller() {

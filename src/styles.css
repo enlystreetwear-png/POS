@@ -1542,6 +1542,10 @@ textarea:focus {
   display: none;
 }
 
+.mobile-signout-button {
+  display: none;
+}
+
 .ops-panel,
 .settings-panel {
   margin-bottom: 16px;
@@ -2495,6 +2499,13 @@ textarea:focus {
 
   .mobile-more-panel {
     display: block;
+  }
+
+  .mobile-signout-button {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 12px;
   }
 
   .table-context {
