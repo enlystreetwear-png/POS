@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260524-pc-menu-clean";
+const assetVersion = "20260524-dashboard-polish";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -573,41 +573,84 @@ function renderDashboard() {
   const today = new Date().toDateString();
   const todaysSales = state.data.sales.filter((sale) => new Date(sale.createdAt).toDateString() === today);
   const revenue = todaysSales.reduce((sum, sale) => sum + sale.total, 0);
-  const lowStock = state.data.products.filter((product) => Number(product.stock) <= 5).length;
   const openTables = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length);
+  const openTableValue = openTables.reduce((sum, table) => sum + tableTotal(table.id), 0);
+  const activeKots = (state.data.kots || []).filter((kot) => kot.status !== "billed");
+  const lowStockProducts = state.data.products.filter((product) => Number(product.stock) <= 5);
+  const lowStock = lowStockProducts.length;
   const avgBill = todaysSales.length ? revenue / todaysSales.length : 0;
-  const health = businessHealth();
+  const cashRevenue = todaysSales.filter((sale) => sale.payment === "Cash").reduce((sum, sale) => sum + sale.total, 0);
+  const digitalRevenue = Math.max(0, revenue - cashRevenue);
+  const tableLoad = percent(openTables.length, Math.max(1, state.data.tables.length));
+  const stockHealth = percent(Math.max(0, state.data.products.length - lowStock), Math.max(1, state.data.products.length));
+  const cashShare = percent(cashRevenue, Math.max(1, revenue));
   return `
     <section class="grid dashboard-grid">
-      ${metric("Today Revenue", money(revenue), "indian-rupee")}
-      ${metric("Invoices Today", todaysSales.length, "receipt")}
-      ${metric("Open Tables", openTables.length, "utensils")}
-      ${metric("Average Bill", money(avgBill), "chart-no-axes-column")}
+      ${metric("Today sales", money(revenue), "indian-rupee")}
+      ${metric("Open table value", money(openTableValue), "utensils")}
+      ${metric("Invoices", todaysSales.length, "receipt")}
+      ${metric("Average bill", money(avgBill), "chart-no-axes-column")}
     </section>
-    <section class="grid dashboard-split">
-      <div class="panel menu-panel">
-        <div class="panel-header"><h3>Today control center</h3><div class="toolbar"><button class="button secondary" id="export-backup">${icon("download")} Backup</button><button class="button" id="close-shift">${icon("badge-check")} Close shift</button></div></div>
-        <div class="ops-grid compact">
-          ${statusTile("Open bills", openTables.length, "circle-dot")}
-          ${statusTile("Low stock", lowStock, lowStock ? "triangle-alert" : "circle-check")}
-          ${statusTile("Cloud sync", syncLabel(), syncIcon())}
-          ${statusTile("Last close", lastClosingLabel(), "clock")}
+    <section class="dashboard-overview">
+      <div class="panel dashboard-command">
+        <div>
+          <span class="eyebrow">Live restaurant status</span>
+          <h3>${openTables.length ? `${openTables.length} table${openTables.length === 1 ? "" : "s"} running` : "Floor is clear"}</h3>
+          <p>${activeKots.length} active KOT${activeKots.length === 1 ? "" : "s"} • ${lowStock} low stock item${lowStock === 1 ? "" : "s"} • Last close ${lastClosingLabel()}</p>
+        </div>
+        <div class="dashboard-actions">
+          <button class="button" data-view="pos">${icon("utensils")} Open tables</button>
+          <button class="button secondary" id="close-shift">${icon("badge-check")} Close shift</button>
+          <button class="button secondary" id="export-backup">${icon("download")} Backup</button>
         </div>
       </div>
-      <div class="panel menu-panel">
-        <div class="panel-header"><h3>Business health</h3><button class="button secondary" data-action="backup-restore" data-action-label="Backup & Restore">${icon("shield-check")} Data tools</button></div>
-        <div class="health-list">${health.map((item) => `
-          <div class="health-row ${item.status}">
-            ${icon(item.status === "ok" ? "circle-check" : "circle-alert", 18)}
-            <div><strong>${item.title}</strong><span>${item.text}</span></div>
-          </div>
-        `).join("")}</div>
+      <div class="dashboard-rings">
+        ${ringChart("Table load", tableLoad, `${openTables.length}/${state.data.tables.length}`, "occupied")}
+        ${ringChart("Cash sales", cashShare, money(cashRevenue), digitalRevenue ? `${money(digitalRevenue)} digital` : "No digital sales")}
+        ${ringChart("Stock health", stockHealth, `${state.data.products.length - lowStock}/${state.data.products.length}`, lowStock ? `${lowStock} low` : "Healthy")}
       </div>
     </section>
-    <section class="panel" style="margin-top:16px">
-      <div class="panel-header"><h3>Recent invoices</h3><div class="toolbar"><button class="button secondary" data-view="reports">${icon("chart-line")} Reports</button><button class="button secondary" data-view="sales">${icon("arrow-right")} View sales</button></div></div>
-      ${renderSaleList(state.data.sales.slice(0, 6))}
+    <section class="grid dashboard-split">
+      <div class="panel">
+        <div class="panel-header"><h3>Running tables</h3><button class="button secondary" data-view="pos">${icon("arrow-right")} Billing</button></div>
+        ${openTables.length ? renderOpenTableList(openTables) : `<div class="empty">No running table bills right now</div>`}
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Action queue</h3><button class="button secondary" data-view="products">${icon("boxes")} Stock</button></div>
+        <div class="health-list">
+          ${queueRow(activeKots.length ? "warn" : "ok", "Kitchen tickets", activeKots.length ? `${activeKots.length} KOTs waiting or cooking` : "No pending kitchen tickets", activeKots.length ? "scroll-text" : "circle-check")}
+          ${queueRow(openTables.length ? "warn" : "ok", "Open bills", openTables.length ? `${openTables.length} bills need settlement` : "No open bills", openTables.length ? "receipt" : "circle-check")}
+          ${queueRow(lowStock ? "warn" : "ok", "Low stock", lowStock ? lowStockProducts.slice(0, 3).map((item) => item.name).join(", ") : "All menu stock looks fine", lowStock ? "triangle-alert" : "circle-check")}
+          ${queueRow(state.syncStatus === "error" ? "warn" : "ok", "Cloud sync", syncLabel(), syncIcon())}
+        </div>
+      </div>
     </section>
+    <section class="panel dashboard-recent">
+      <div class="panel-header"><h3>Recent invoices</h3><div class="toolbar"><button class="button secondary" data-view="reports">${icon("chart-line")} Reports</button><button class="button secondary" data-view="sales">${icon("arrow-right")} View sales</button></div></div>
+      ${renderSaleList(state.data.sales.slice(0, 5))}
+    </section>
+  `;
+}
+
+function percent(value, total) {
+  return Math.max(0, Math.min(100, Math.round((Number(value || 0) / Number(total || 1)) * 100)));
+}
+
+function ringChart(label, value, main, sub) {
+  return `
+    <div class="ring-card">
+      <div class="ring" style="--value:${value}"><strong>${value}%</strong></div>
+      <div><h4>${label}</h4><strong>${main}</strong><span>${sub}</span></div>
+    </div>
+  `;
+}
+
+function queueRow(status, title, text, iconName) {
+  return `
+    <div class="health-row ${status}">
+      ${icon(iconName, 18)}
+      <div><strong>${title}</strong><span>${text}</span></div>
+    </div>
   `;
 }
 
