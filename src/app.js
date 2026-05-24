@@ -3,12 +3,12 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-mobile-phone-auth";
+const assetVersion = "20260525-mobile-invisible-auth";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
 const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
-const authTimeoutMs = 15000;
+const authTimeoutMs = 60000;
 const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
 
@@ -2409,11 +2409,10 @@ async function ensureRecaptcha() {
   const container = document.querySelector("#recaptcha-container");
   if (!container) throw new Error("OTP security check could not load. Refresh the page and try again.");
   container.innerHTML = "";
-  const isMobileAuth = window.matchMedia("(max-width: 720px)").matches;
-  container.dataset.mode = isMobileAuth ? "compact" : "invisible";
+  container.dataset.mode = "invisible";
   const { RecaptchaVerifier } = state.firebase.authMod;
   state.recaptchaVerifier = new RecaptchaVerifier(state.auth, "recaptcha-container", {
-    size: isMobileAuth ? "compact" : "invisible",
+    size: "invisible",
     callback: () => {
       state.authError = "";
     },
