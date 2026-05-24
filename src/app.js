@@ -3,12 +3,11 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-mobile-invisible-auth";
+const assetVersion = "20260525-mobile-auth-gesture";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
 const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
-const authTimeoutMs = 60000;
 const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
 
@@ -2404,7 +2403,7 @@ function ensureFirebaseAuthReady(message) {
   return true;
 }
 
-async function ensureRecaptcha() {
+function ensureRecaptcha() {
   if (state.recaptchaVerifier) return state.recaptchaVerifier;
   const container = document.querySelector("#recaptcha-container");
   if (!container) throw new Error("OTP security check could not load. Refresh the page and try again.");
@@ -2423,7 +2422,6 @@ async function ensureRecaptcha() {
       resetRecaptcha();
     }
   });
-  await withTimeout(state.recaptchaVerifier.render(), "OTP security check timed out. Reload and try again, or use Google login.");
   return state.recaptchaVerifier;
 }
 
@@ -2439,16 +2437,6 @@ function resetRecaptcha() {
     container.innerHTML = "";
     delete container.dataset.mode;
   }
-}
-
-function withTimeout(promise, message, timeoutMs = authTimeoutMs) {
-  let timerId;
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      timerId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
-    })
-  ]).finally(() => window.clearTimeout(timerId));
 }
 
 async function sendPhoneOtp() {
@@ -2468,11 +2456,8 @@ async function sendPhoneOtp() {
   render();
   const { signInWithPhoneNumber } = state.firebase.authMod;
   try {
-    const verifier = await ensureRecaptcha();
-    state.otpConfirmation = await withTimeout(
-      signInWithPhoneNumber(state.auth, phone, verifier),
-      "OTP request timed out. Reload and try again, or use Google login."
-    );
+    const verifier = ensureRecaptcha();
+    state.otpConfirmation = await signInWithPhoneNumber(state.auth, phone, verifier);
     state.otpSent = true;
     state.authBusy = false;
     state.authAction = "";
