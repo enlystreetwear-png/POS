@@ -921,14 +921,17 @@ function renderProductCard(product) {
   const imageSrc = productImageSrc(product);
   const art = imageSrc ? `<img src="${imageSrc}" alt="${escapeAttr(product.name)}">` : product.name.slice(0, 2).toUpperCase();
   return `
-    <button class="product-card" data-add="${product.id}">
-      <div class="product-art">${art}</div>
-      <div class="product-body">
-        <h4>${product.name}</h4>
-        <div class="product-meta"><span>${product.category || "General"}</span><span>Stock ${product.stock}</span></div>
-        <div class="product-meta"><span>${product.sku || "No SKU"}</span><span class="price">${money(product.price)}</span></div>
-      </div>
-    </button>
+    <article class="product-card">
+      <button class="product-remove" data-remove-product="${product.id}" title="Remove ${escapeAttr(product.name)}">${icon("trash-2", 15)}</button>
+      <button class="product-add-area" data-add="${product.id}" title="Add ${escapeAttr(product.name)}">
+        <div class="product-art">${art}</div>
+        <div class="product-body">
+          <h4>${product.name}</h4>
+          <div class="product-meta"><span>${product.category || "General"}</span><span>Stock ${product.stock}</span></div>
+          <div class="product-meta"><span>${product.sku || "No SKU"}</span><span class="price">${money(product.price)}</span></div>
+        </div>
+      </button>
+    </article>
   `;
 }
 
@@ -1695,6 +1698,13 @@ function bindEvents() {
   document.querySelectorAll("[data-add]").forEach((button) => {
     button.addEventListener("click", () => addToCart(button.dataset.add));
   });
+  document.querySelectorAll("[data-remove-product]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeProduct(button.dataset.removeProduct);
+    });
+  });
   document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1)));
   document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1)));
   document.querySelector("#clear-cart")?.addEventListener("click", async () => {
@@ -2068,6 +2078,26 @@ function syncActiveKotsWithTable(tableId, cart) {
       };
     })
     .filter((kot) => kot.status === "billed" || kot.tableId !== tableId || kot.items.length);
+}
+
+async function removeProduct(productId) {
+  const product = state.data.products.find((item) => item.id === productId);
+  if (!product) return;
+  if (!confirm(`Remove ${product.name} from the menu?`)) return;
+
+  state.data.products = state.data.products.filter((item) => item.id !== productId);
+  Object.keys(state.data.openBills || {}).forEach((tableId) => {
+    const nextCart = (state.data.openBills[tableId] || []).filter((item) => item.id !== productId);
+    if (nextCart.length) state.data.openBills[tableId] = nextCart;
+    else delete state.data.openBills[tableId];
+    syncActiveKotsWithTable(tableId, nextCart);
+  });
+  if (!state.data.products.some((item) => (item.category || "General") === state.selectedCategory)) {
+    state.selectedCategory = "All";
+  }
+  if (state.pendingBill?.sale?.items?.some((item) => item.id === productId)) state.pendingBill = null;
+  await persistSafely("Menu item removed", "Menu item removed locally. Cloud sync failed.");
+  render();
 }
 
 async function backToTables() {
