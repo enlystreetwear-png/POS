@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260526-offline-sync";
+const assetVersion = "20260526-mobile-lan";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -12,12 +12,22 @@ const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
 const pendingSyncPrefix = "pondypos-pending-sync";
 
+function newId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function cloneData(value) {
+  if (globalThis.structuredClone) return globalThis.structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+
 const demoProducts = [
-  { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Paneer Butter Masala", sku: "CUR-102", category: "Curries", price: 220, cost: 96, stock: 45, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Veg Biryani", sku: "RIC-210", category: "Rice Bowls", price: 180, cost: 82, stock: 55, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Tandoori Roti", sku: "BRD-011", category: "Breads", price: 35, cost: 12, stock: 120, imageUrl: "" },
-  { id: crypto.randomUUID(), name: "Fresh Lime Soda", sku: "BEV-044", category: "Beverages", price: 70, cost: 24, stock: 60, imageUrl: "" }
+  { id: newId(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
+  { id: newId(), name: "Paneer Butter Masala", sku: "CUR-102", category: "Curries", price: 220, cost: 96, stock: 45, imageUrl: "" },
+  { id: newId(), name: "Veg Biryani", sku: "RIC-210", category: "Rice Bowls", price: 180, cost: 82, stock: 55, imageUrl: "" },
+  { id: newId(), name: "Tandoori Roti", sku: "BRD-011", category: "Breads", price: 35, cost: 12, stock: 120, imageUrl: "" },
+  { id: newId(), name: "Fresh Lime Soda", sku: "BEV-044", category: "Beverages", price: 70, cost: 24, stock: 60, imageUrl: "" }
 ];
 
 const seed = {
@@ -52,7 +62,7 @@ const seed = {
   },
   products: demoProducts,
   customers: [
-    { id: crypto.randomUUID(), name: "Walk-in Customer", phone: "", email: "", totalSpent: 0 }
+    { id: newId(), name: "Walk-in Customer", phone: "", email: "", totalSpent: 0 }
   ],
   sales: [],
   closings: []
@@ -128,11 +138,11 @@ function clearPendingSync() {
 function readLocal(tenantId = state?.tenantId || "demo") {
   if (tenantId === "demo") migrateStorageKey("countercloud-pos", dataStorageKey("demo"));
   const saved = localStorage.getItem(dataStorageKey(tenantId));
-  if (!saved) return normalizeData(structuredClone(seed));
+  if (!saved) return normalizeData(cloneData(seed));
   try {
-    return normalizeData({ ...structuredClone(seed), ...JSON.parse(saved) });
+    return normalizeData({ ...cloneData(seed), ...JSON.parse(saved) });
   } catch {
-    return normalizeData(structuredClone(seed));
+    return normalizeData(cloneData(seed));
   }
 }
 
@@ -141,7 +151,7 @@ function writeLocal() {
 }
 
 function normalizeData(data) {
-  const freshSeed = structuredClone(seed);
+  const freshSeed = cloneData(seed);
   const settings = { ...freshSeed.settings, ...(data.settings || {}) };
   if (settings.shopName === "CounterCloud Store" || settings.shopName === "CounterCloud Restaurant") settings.shopName = freshSeed.settings.shopName;
   if (settings.address === "Your store address") settings.address = freshSeed.settings.address;
@@ -277,7 +287,7 @@ async function pullCloudData() {
   const snap = await getDoc(ref);
   if (snap.exists()) {
     if (!state.pendingCloudSync) {
-      state.data = normalizeData({ ...structuredClone(seed), ...snap.data() });
+      state.data = normalizeData({ ...cloneData(seed), ...snap.data() });
       writeLocal();
     }
   } else {
@@ -434,10 +444,10 @@ function icon(name, size = 18) {
 
 function escapeAttr(value = "") {
   return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function render() {
@@ -1891,7 +1901,7 @@ function exportReportCsv() {
   const table = document.querySelector(".report-table");
   if (!table) return;
   const rows = [...table.querySelectorAll("tr")].map((row) =>
-    [...row.children].map((cell) => `"${cell.textContent.replaceAll('"', '""')}"`).join(",")
+    [...row.children].map((cell) => `"${cell.textContent.replace(/"/g, '""')}"`).join(",")
   ).join("\n");
   const blob = new Blob([rows], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1934,7 +1944,7 @@ async function importBackup(event) {
   try {
     const payload = JSON.parse(await file.text());
     const restored = payload.data || payload;
-    state.data = normalizeData({ ...structuredClone(seed), ...restored });
+    state.data = normalizeData({ ...cloneData(seed), ...restored });
     state.selectedTableId = "";
     await persist();
     state.modal = null;
@@ -1959,7 +1969,7 @@ async function closeShift() {
   const cashExpected = todaysSales.filter((sale) => sale.paymentMethod === "Cash").reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const cashCounted = Number(document.querySelector("#close-cash")?.value || 0);
   const closing = {
-    id: crypto.randomUUID(),
+    id: newId(),
     closedAt: new Date().toISOString(),
     closedBy: document.querySelector("#close-user")?.value.trim() || currentEmail(),
     orders: todaysSales.length,
@@ -2030,7 +2040,7 @@ function changeQty(id, amount) {
 
 function syncActiveKotsWithTable(tableId, cart) {
   if (!tableId) return;
-  const nextItems = structuredClone(cart);
+  const nextItems = cloneData(cart);
   state.data.kots = (state.data.kots || [])
     .map((kot) => {
       if (kot.tableId !== tableId || kot.status === "billed") return kot;
@@ -2075,11 +2085,11 @@ async function saveKot() {
     return;
   }
   const kot = {
-    id: crypto.randomUUID(),
+    id: newId(),
     kotNo: `KOT-${String((state.data.kots?.length || 0) + 1).padStart(4, "0")}`,
     tableId: table.id,
     tableName: table.name,
-    items: structuredClone(cart),
+    items: cloneData(cart),
     total: tableTotal(table.id),
     status: "sent",
     createdAt: new Date().toISOString()
@@ -2105,7 +2115,7 @@ async function addTable() {
     setToast("Table name already exists", "error");
     return;
   }
-  state.data.tables.push({ id: `T-${crypto.randomUUID()}`, name, seats });
+  state.data.tables.push({ id: `T-${newId()}`, name, seats });
   await persistSafely("Table added", "Table added locally. Cloud sync failed.");
   render();
 }
@@ -2150,7 +2160,7 @@ async function checkout() {
   let customer = state.data.customers.find((item) => item.name.toLowerCase() === typedCustomerName.toLowerCase());
   if (!customer) {
     customer = {
-      id: crypto.randomUUID(),
+      id: newId(),
       name: typedCustomerName,
       phone: "",
       visits: 0,
@@ -2161,7 +2171,7 @@ async function checkout() {
   const current = totals();
   const tableId = state.selectedTableId;
   const sale = {
-    id: crypto.randomUUID(),
+    id: newId(),
     invoiceNo: `${state.data.settings.invoicePrefix}-${String(state.data.sales.length + 1).padStart(5, "0")}`,
     createdAt: new Date().toISOString(),
     customerId: customer.id,
@@ -2170,7 +2180,7 @@ async function checkout() {
     tableName: table?.name || "No table",
     paymentMethod: document.querySelector("#payment").value,
     paid: Number(document.querySelector("#paid").value || current.total),
-    items: structuredClone(cart),
+    items: cloneData(cart),
     ...current
   };
   if (state.data.settings.saveBillAfterPrint) {
@@ -2228,7 +2238,7 @@ async function saveProduct() {
     saveButton.innerHTML = `${icon("loader-circle")} Saving...`;
     createIconsSafely();
   }
-  const id = document.querySelector("#save-product").dataset.id || crypto.randomUUID();
+  const id = document.querySelector("#save-product").dataset.id || newId();
   const previous = state.data.products.find((product) => product.id === id) || {};
   const file = document.querySelector("#product-image").files[0];
   const product = {
@@ -2393,7 +2403,7 @@ async function saveModuleSettings() {
 async function resetCurrentAccountData() {
   if (!confirm("Delete all billing, menu, guest, and order data for this login and start fresh?")) return;
   const tenantId = state.tenantId;
-  state.data = normalizeData(structuredClone(seed));
+  state.data = normalizeData(cloneData(seed));
   state.selectedTableId = "";
   localStorage.removeItem(dataStorageKey(tenantId));
   writeLocal();
@@ -2412,7 +2422,7 @@ async function resetCurrentAccountData() {
 
 async function saveCustomer() {
   const customer = {
-    id: crypto.randomUUID(),
+    id: newId(),
     name: document.querySelector("#customer-name").value.trim() || "Unnamed customer",
     phone: document.querySelector("#customer-phone").value.trim(),
     email: document.querySelector("#customer-email").value.trim(),
