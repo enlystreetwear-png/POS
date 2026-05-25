@@ -1783,14 +1783,19 @@ function bindCategoryScroller() {
   });
 
   let startX = 0;
+  let startY = 0;
   let startScroll = 0;
   let dragging = false;
   let moved = false;
 
-  const moveTo = (clientX, event) => {
+  const moveTo = (clientX, clientY, event) => {
     if (!dragging) return;
     const delta = clientX - startX;
-    if (Math.abs(delta) > 7) {
+    const verticalDelta = Math.abs(clientY - startY);
+    const horizontalDelta = Math.abs(delta);
+    if (horizontalDelta <= 6 || horizontalDelta <= verticalDelta) return;
+    if (!moved) strip.classList.add("dragging");
+    if (horizontalDelta > 7) {
       moved = true;
       event?.preventDefault?.();
     }
@@ -1806,14 +1811,14 @@ function bindCategoryScroller() {
   };
 
   strip.addEventListener("pointerdown", (event) => {
-    if (event.pointerType !== "mouse") return;
+    if (event.button && event.button !== 0) return;
     dragging = true;
     moved = false;
     startX = event.clientX;
+    startY = event.clientY;
     startScroll = strip.scrollLeft;
-    strip.classList.add("dragging");
   });
-  strip.addEventListener("pointermove", (event) => moveTo(event.clientX, event));
+  strip.addEventListener("pointermove", (event) => moveTo(event.clientX, event.clientY, event));
   ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => strip.addEventListener(eventName, stop));
 
   strip.addEventListener("scroll", () => {
