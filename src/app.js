@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260526-mobile-lan";
+const assetVersion = "20260526-fit-screen";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -796,7 +796,7 @@ function renderPOS() {
   return `
     ${locked ? renderSubscriptionBanner() : ""}
     <section class="grid pos-grid ${state.mobileCartOpen ? "cart-open" : ""}">
-      <div class="panel">
+      <div class="panel menu-panel">
         <div class="panel-header menu-panel-header">
           <div class="toolbar menu-titlebar">
             <button class="button secondary compact" id="back-to-tables">${icon("arrow-left")} Tables</button>
