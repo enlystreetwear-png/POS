@@ -1820,16 +1820,32 @@ function bindCategoryScroller() {
     strip.classList.remove("dragging");
   };
 
-  strip.addEventListener("pointerdown", (event) => {
-    if (event.button && event.button !== 0) return;
+  const startDrag = (clientX, clientY) => {
     dragging = true;
     moved = false;
-    startX = event.clientX;
-    startY = event.clientY;
+    startX = clientX;
+    startY = clientY;
     startScroll = strip.scrollLeft;
+  };
+
+  strip.addEventListener("pointerdown", (event) => {
+    if (event.button && event.button !== 0) return;
+    startDrag(event.clientX, event.clientY);
   });
   strip.addEventListener("pointermove", (event) => moveTo(event.clientX, event.clientY, event));
   ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => strip.addEventListener(eventName, stop));
+
+  strip.addEventListener("touchstart", (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    startDrag(touch.clientX, touch.clientY);
+  }, { passive: true });
+  strip.addEventListener("touchmove", (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    moveTo(touch.clientX, touch.clientY, event);
+  }, { passive: false });
+  ["touchend", "touchcancel"].forEach((eventName) => strip.addEventListener(eventName, stop));
 
   strip.addEventListener("scroll", () => {
     state.categoryScrollLeft = strip.scrollLeft;

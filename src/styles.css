@@ -2096,7 +2096,7 @@ textarea:focus {
     margin: 0 0 10px;
     padding: 0;
     overflow: hidden;
-    touch-action: pan-x;
+    touch-action: pan-y;
     background:
       linear-gradient(90deg, #ffffff 0, rgba(255, 255, 255, 0) 18px, rgba(255, 255, 255, 0) calc(100% - 18px), #ffffff 100%),
       linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
@@ -2119,6 +2119,7 @@ textarea:focus {
     scrollbar-width: thin;
     cursor: grab;
     touch-action: pan-y;
+    user-select: none;
     -webkit-overflow-scrolling: touch;
     background: transparent;
   }
