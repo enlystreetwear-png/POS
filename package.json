@@ -4,9 +4,9 @@
   "private": true,
   "description": "Mobile and desktop SaaS POS with billing, inventory, customers, Firebase-ready cloud storage, and Vercel deployment.",
   "scripts": {
-    "dev": "python3 -m http.server 4173",
+    "dev": "node scripts/dev-server.mjs",
     "build": "echo 'Static app: no build required'",
-    "preview": "python3 -m http.server 4173"
+    "preview": "node scripts/dev-server.mjs"
   },
   "dependencies": {},
   "devDependencies": {}

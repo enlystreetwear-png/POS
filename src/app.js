@@ -3,13 +3,14 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260525-mobile-auth-recovery";
+const assetVersion = "20260526-offline-sync";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
 const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
 const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
+const pendingSyncPrefix = "pondypos-pending-sync";
 
 const demoProducts = [
   { id: crypto.randomUUID(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
@@ -72,6 +73,7 @@ const state = {
   authRequestId: 0,
   checkoutBusy: false,
   syncStatus: "idle",
+  pendingCloudSync: readPendingSync(initialTenantId),
   toast: null,
   cloudReady: false,
   user: null,
@@ -90,7 +92,6 @@ const state = {
   selectedCategory: "All",
   categoryScrollLeft: 0,
   categoryDragSuppressUntil: 0,
-  categoryPointerMoved: false,
   mobileCartOpen: false,
   restoreMainScroll: null,
   modal: null,
@@ -104,6 +105,24 @@ const app = document.querySelector("#app");
 
 function dataStorageKey(tenantId = state?.tenantId || "demo") {
   return tenantId && tenantId !== "demo" ? `${dataStoragePrefix}-${tenantId}` : `${dataStoragePrefix}-demo`;
+}
+
+function pendingSyncKey(tenantId = state?.tenantId || "demo") {
+  return tenantId && tenantId !== "demo" ? `${pendingSyncPrefix}-${tenantId}` : `${pendingSyncPrefix}-demo`;
+}
+
+function readPendingSync(tenantId = state?.tenantId || "demo") {
+  return localStorage.getItem(pendingSyncKey(tenantId)) === "true";
+}
+
+function markPendingSync() {
+  state.pendingCloudSync = true;
+  localStorage.setItem(pendingSyncKey(), "true");
+}
+
+function clearPendingSync() {
+  state.pendingCloudSync = false;
+  localStorage.removeItem(pendingSyncKey());
 }
 
 function readLocal(tenantId = state?.tenantId || "demo") {
@@ -193,63 +212,78 @@ function hasFirebaseConfig() {
 }
 
 async function initFirebase() {
+  if (state.firebaseInitializing || state.cloudReady) return;
   const config = window.FIREBASE_CONFIG || {};
   if (!config.apiKey || !config.projectId) {
     state.authReady = true;
     return;
   }
-  const firebase = await Promise.all([
-    import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
-    import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
-    import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js"),
-    import("https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js")
-  ]);
-  const [{ initializeApp }, authMod, fireMod, storageMod] = firebase;
-  const firebaseApp = initializeApp(config);
-  state.auth = authMod.getAuth(firebaseApp);
-  await authMod.setPersistence(state.auth, authMod.browserLocalPersistence);
-  state.db = fireMod.getFirestore(firebaseApp);
-  state.storage = storageMod.getStorage(firebaseApp);
-  state.firebase = { authMod, fireMod, storageMod };
-  state.cloudReady = true;
+  state.firebaseInitializing = true;
   try {
-    const redirectResult = await authMod.getRedirectResult(state.auth);
-    if (redirectResult?.user) await finishSignedInUser(redirectResult.user);
-  } catch (error) {
-    state.authError = friendlyAuthError(error);
-  }
-  authMod.onAuthStateChanged(state.auth, async (user) => {
-    state.user = user;
-    state.tenantId = user?.uid || "demo";
-    state.data = readLocal(state.tenantId);
-    state.selectedTableId = "";
-    state.authReady = true;
-    state.authBusy = false;
-    if (user) rememberSignedInUser(user);
-    render();
-    if (user) {
-      try {
-        await pullCloudData();
-        render();
-      } catch (error) {
-        console.warn("Cloud sync failed", error);
-        state.authError = "";
-      }
+    const firebase = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js")
+    ]);
+    const [{ initializeApp }, authMod, fireMod, storageMod] = firebase;
+    const firebaseApp = initializeApp(config);
+    state.auth = authMod.getAuth(firebaseApp);
+    await authMod.setPersistence(state.auth, authMod.browserLocalPersistence);
+    state.db = fireMod.getFirestore(firebaseApp);
+    state.storage = storageMod.getStorage(firebaseApp);
+    state.firebase = { authMod, fireMod, storageMod };
+    state.cloudReady = true;
+    try {
+      const redirectResult = await authMod.getRedirectResult(state.auth);
+      if (redirectResult?.user) await finishSignedInUser(redirectResult.user);
+    } catch (error) {
+      state.authError = friendlyAuthError(error);
     }
-  });
+    authMod.onAuthStateChanged(state.auth, async (user) => {
+      state.user = user;
+      state.tenantId = user?.uid || "demo";
+      state.data = readLocal(state.tenantId);
+      state.pendingCloudSync = readPendingSync(state.tenantId);
+      state.selectedTableId = "";
+      state.authReady = true;
+      state.authBusy = false;
+      if (user) rememberSignedInUser(user);
+      render();
+      if (user) {
+        try {
+          await pullCloudData();
+          await syncPendingIfOnline({ silent: true });
+          render();
+        } catch (error) {
+          console.warn("Cloud sync failed", error);
+          state.authError = "";
+        }
+      }
+    });
+  } finally {
+    state.firebaseInitializing = false;
+  }
 }
 
 async function pullCloudData() {
-  if (!state.user) return;
+  if (!state.user || !state.db) return;
+  if (navigator.onLine === false) {
+    state.syncStatus = "offline";
+    return;
+  }
   const { doc, getDoc, setDoc } = state.firebase.fireMod;
   const ref = doc(state.db, "tenants", state.tenantId);
   const snap = await getDoc(ref);
   if (snap.exists()) {
-    state.data = normalizeData({ ...structuredClone(seed), ...snap.data() });
-    writeLocal();
+    if (!state.pendingCloudSync) {
+      state.data = normalizeData({ ...structuredClone(seed), ...snap.data() });
+      writeLocal();
+    }
   } else {
     state.data = readLocal(state.tenantId);
     await setDoc(ref, state.data);
+    clearPendingSync();
   }
 }
 
@@ -259,6 +293,11 @@ async function persist() {
     state.syncStatus = "local";
     return;
   }
+  if (navigator.onLine === false) {
+    markPendingSync();
+    state.syncStatus = "offline";
+    return;
+  }
   const { doc, setDoc, serverTimestamp } = state.firebase.fireMod;
   state.syncStatus = "syncing";
   try {
@@ -266,10 +305,12 @@ async function persist() {
       ...state.data,
       updatedAt: serverTimestamp()
     });
+    clearPendingSync();
     state.syncStatus = "synced";
     state.lastSyncedAt = new Date().toISOString();
   } catch (error) {
-    state.syncStatus = "error";
+    markPendingSync();
+    state.syncStatus = navigator.onLine === false ? "offline" : "error";
     throw error;
   }
 }
@@ -283,6 +324,30 @@ async function persistSafely(successMessage, errorMessage = "Saved locally. Clou
     console.warn(errorMessage, error);
     setToast(errorMessage, "error");
     return false;
+  }
+}
+
+function persistInBackground(errorMessage = "Saved locally. Cloud sync pending.") {
+  persist().catch((error) => {
+    console.warn(errorMessage, error);
+    if (!state.toast) setToast(errorMessage, "error");
+    render();
+  });
+}
+
+async function syncPendingIfOnline({ silent = false } = {}) {
+  if (!state.user || !state.db || navigator.onLine === false) return false;
+  if (!state.pendingCloudSync && !readPendingSync(state.tenantId)) return false;
+  try {
+    await persist();
+    if (!silent) setToast("Offline changes synced");
+    return true;
+  } catch (error) {
+    console.warn("Pending sync failed", error);
+    if (!silent) setToast("Still offline. Changes remain saved locally.", "error");
+    return false;
+  } finally {
+    if (!silent) render();
   }
 }
 
@@ -377,7 +442,7 @@ function escapeAttr(value = "") {
 
 function render() {
   app.innerHTML = !isAuthenticated() ? renderAuth() : renderShell();
-  lucide.createIcons();
+  createIconsSafely();
   bindEvents();
   if (state.focusReportSearch) {
     const search = document.querySelector("#report-search");
@@ -390,6 +455,10 @@ function render() {
     if (main) main.scrollTop = state.restoreMainScroll;
     state.restoreMainScroll = null;
   }
+}
+
+function createIconsSafely() {
+  if (window.lucide?.createIcons) window.lucide.createIcons();
 }
 
 function renderAuth() {
@@ -536,14 +605,18 @@ function renderTopbar() {
 function syncIcon() {
   if (!state.user) return "hard-drive";
   if (state.syncStatus === "syncing") return "loader-circle";
+  if (state.syncStatus === "offline") return "wifi-off";
   if (state.syncStatus === "error") return "cloud-off";
+  if (state.pendingCloudSync) return "cloud-upload";
   return "cloud-check";
 }
 
 function syncLabel() {
   if (!state.user) return "Local mode";
   if (state.syncStatus === "syncing") return "Syncing";
+  if (state.syncStatus === "offline") return "Offline saved";
   if (state.syncStatus === "error") return "Sync issue";
+  if (state.pendingCloudSync) return "Cloud pending";
   if (state.lastSyncedAt) return `Synced ${new Date(state.lastSyncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   return "Firebase cloud";
 }
@@ -1600,7 +1673,7 @@ function bindEvents() {
   bindCategoryScroller();
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.addEventListener("click", (event) => {
-      if (state.categoryPointerMoved || Date.now() < state.categoryDragSuppressUntil) {
+      if (Date.now() < state.categoryDragSuppressUntil) {
         event.preventDefault();
         return;
       }
@@ -1703,8 +1776,7 @@ async function signOutCurrentUser() {
 
 function bindCategoryScroller() {
   const strip = document.querySelector(".category-strip");
-  const shell = document.querySelector(".category-scroll-shell");
-  if (!strip || !shell) return;
+  if (!strip) return;
 
   requestAnimationFrame(() => {
     strip.scrollLeft = state.categoryScrollLeft || 0;
@@ -1714,23 +1786,12 @@ function bindCategoryScroller() {
   let startScroll = 0;
   let dragging = false;
   let moved = false;
-  let moveResetTimer = 0;
-
-  const markMoved = () => {
-    moved = true;
-    state.categoryPointerMoved = true;
-    state.categoryDragSuppressUntil = Date.now() + 900;
-    window.clearTimeout(moveResetTimer);
-    moveResetTimer = window.setTimeout(() => {
-      state.categoryPointerMoved = false;
-    }, 900);
-  };
 
   const moveTo = (clientX, event) => {
     if (!dragging) return;
     const delta = clientX - startX;
     if (Math.abs(delta) > 7) {
-      markMoved();
+      moved = true;
       event?.preventDefault?.();
     }
     strip.scrollLeft = startScroll - delta;
@@ -1738,51 +1799,22 @@ function bindCategoryScroller() {
   };
 
   const stop = () => {
+    if (moved) state.categoryDragSuppressUntil = Date.now() + 180;
     dragging = false;
+    moved = false;
     strip.classList.remove("dragging");
-    if (moved) markMoved();
   };
 
-  strip.addEventListener("click", (event) => {
-    if (!state.categoryPointerMoved && Date.now() >= state.categoryDragSuppressUntil) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
-
-  shell.addEventListener("pointerdown", (event) => {
-    dragging = true;
-    moved = false;
-    startX = event.clientX;
-    startScroll = strip.scrollLeft;
-    shell.setPointerCapture?.(event.pointerId);
-    strip.classList.add("dragging");
-  });
-  shell.addEventListener("pointermove", (event) => moveTo(event.clientX, event));
-  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => shell.addEventListener(eventName, stop));
-
-  shell.addEventListener("mousedown", (event) => {
+  strip.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "mouse") return;
     dragging = true;
     moved = false;
     startX = event.clientX;
     startScroll = strip.scrollLeft;
     strip.classList.add("dragging");
   });
-  window.addEventListener("mousemove", (event) => moveTo(event.clientX, event));
-  window.addEventListener("mouseup", stop);
-
-  shell.addEventListener("touchstart", (event) => {
-    if (!event.touches.length) return;
-    dragging = true;
-    moved = false;
-    startX = event.touches[0].clientX;
-    startScroll = strip.scrollLeft;
-    strip.classList.add("dragging");
-  }, { passive: true });
-  shell.addEventListener("touchmove", (event) => {
-    if (!event.touches.length) return;
-    moveTo(event.touches[0].clientX, event);
-  }, { passive: false });
-  ["touchend", "touchcancel"].forEach((eventName) => shell.addEventListener(eventName, stop));
+  strip.addEventListener("pointermove", (event) => moveTo(event.clientX, event));
+  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => strip.addEventListener(eventName, stop));
 
   strip.addEventListener("scroll", () => {
     state.categoryScrollLeft = strip.scrollLeft;
@@ -1973,7 +2005,7 @@ function addToCart(id) {
   const existing = cart.find((item) => item.id === id);
   if (existing) existing.qty += 1;
   else cart.push({ id: product.id, name: product.name, price: Number(product.price), qty: 1 });
-  persist();
+  persistInBackground("Item saved locally. Cloud sync pending.");
   render();
 }
 
@@ -1987,7 +2019,7 @@ function changeQty(id, amount) {
   const tableId = state.selectedTableId;
   setCurrentCart(nextCart);
   syncActiveKotsWithTable(tableId, nextCart);
-  persist();
+  persistInBackground("Quantity saved locally. Cloud sync pending.");
   render();
 }
 
@@ -2189,7 +2221,7 @@ async function saveProduct() {
   if (saveButton) {
     saveButton.disabled = true;
     saveButton.innerHTML = `${icon("loader-circle")} Saving...`;
-    lucide.createIcons();
+    createIconsSafely();
   }
   const id = document.querySelector("#save-product").dataset.id || crypto.randomUUID();
   const previous = state.data.products.find((product) => product.id === id) || {};
@@ -2632,4 +2664,44 @@ async function renewSubscription() {
   render();
 }
 
-initFirebase().finally(render);
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+      console.warn("Offline cache registration failed", error);
+    });
+  });
+}
+
+window.addEventListener("online", () => {
+  if (state.firebaseConfigured && !state.cloudReady) {
+    initFirebase()
+      .then(() => syncPendingIfOnline())
+      .catch((error) => {
+        console.warn("Firebase reconnect failed", error);
+        state.syncStatus = "error";
+      })
+      .finally(render);
+    return;
+  }
+  syncPendingIfOnline().then((synced) => {
+    if (!synced) render();
+  });
+});
+
+window.addEventListener("offline", () => {
+  if (state.user) state.syncStatus = "offline";
+  render();
+});
+
+registerServiceWorker();
+
+initFirebase()
+  .catch((error) => {
+    console.warn("Firebase unavailable. PondyPOS will continue in offline/local mode.", error);
+    state.authReady = true;
+    state.authBusy = false;
+    state.cloudReady = false;
+    state.syncStatus = navigator.onLine === false ? "offline" : "error";
+  })
+  .finally(render);
