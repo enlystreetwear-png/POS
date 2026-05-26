@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260526-fit-screen";
+const assetVersion = "20260526-cart-controls";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -517,8 +517,15 @@ function renderAuth() {
 }
 
 function renderShell() {
+  const shellClasses = [
+    "app-shell",
+    state.sidebarExpanded ? "sidebar-expanded" : "sidebar-collapsed",
+    `view-${state.view}`,
+    state.selectedTableId ? "table-selected" : "",
+    state.mobileCartOpen ? "cart-open-shell" : ""
+  ].filter(Boolean).join(" ");
   return `
-    <div class="app-shell ${state.sidebarExpanded ? "sidebar-expanded" : "sidebar-collapsed"}">
+    <div class="${shellClasses}">
       <aside class="sidebar">
         ${renderBrand()}
         ${renderNav("nav")}
@@ -920,9 +927,14 @@ function renderSubscriptionBanner() {
 function renderProductCard(product) {
   const imageSrc = productImageSrc(product);
   const art = imageSrc ? `<img src="${imageSrc}" alt="${escapeAttr(product.name)}">` : product.name.slice(0, 2).toUpperCase();
+  const cartItem = currentCart().find((item) => item.id === product.id);
+  const quantity = Number(cartItem?.qty || 0);
   return `
-    <article class="product-card">
-      <button class="product-remove" data-remove-product="${product.id}" title="Remove ${escapeAttr(product.name)}">${icon("trash-2", 15)}</button>
+    <article class="product-card ${quantity ? "in-cart" : ""}">
+      ${quantity ? `
+        <button class="product-remove" data-dec="${product.id}" title="Remove one ${escapeAttr(product.name)}">${icon(quantity === 1 ? "trash-2" : "minus", 15)}</button>
+        <span class="product-qty-badge">${quantity}</span>
+      ` : ""}
       <button class="product-add-area" data-add="${product.id}" title="Add ${escapeAttr(product.name)}">
         <div class="product-art">${art}</div>
         <div class="product-body">
@@ -1698,13 +1710,6 @@ function bindEvents() {
   document.querySelectorAll("[data-add]").forEach((button) => {
     button.addEventListener("click", () => addToCart(button.dataset.add));
   });
-  document.querySelectorAll("[data-remove-product]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      removeProduct(button.dataset.removeProduct);
-    });
-  });
   document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1)));
   document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1)));
   document.querySelector("#clear-cart")?.addEventListener("click", async () => {
@@ -2052,6 +2057,7 @@ function addToCart(id) {
 
 function changeQty(id, amount) {
   state.pendingBill = null;
+  state.restoreMainScroll = document.querySelector(".main")?.scrollTop ?? 0;
   const cart = currentCart();
   const item = cart.find((cartItem) => cartItem.id === id);
   if (!item) return;
@@ -2078,26 +2084,6 @@ function syncActiveKotsWithTable(tableId, cart) {
       };
     })
     .filter((kot) => kot.status === "billed" || kot.tableId !== tableId || kot.items.length);
-}
-
-async function removeProduct(productId) {
-  const product = state.data.products.find((item) => item.id === productId);
-  if (!product) return;
-  if (!confirm(`Remove ${product.name} from the menu?`)) return;
-
-  state.data.products = state.data.products.filter((item) => item.id !== productId);
-  Object.keys(state.data.openBills || {}).forEach((tableId) => {
-    const nextCart = (state.data.openBills[tableId] || []).filter((item) => item.id !== productId);
-    if (nextCart.length) state.data.openBills[tableId] = nextCart;
-    else delete state.data.openBills[tableId];
-    syncActiveKotsWithTable(tableId, nextCart);
-  });
-  if (!state.data.products.some((item) => (item.category || "General") === state.selectedCategory)) {
-    state.selectedCategory = "All";
-  }
-  if (state.pendingBill?.sale?.items?.some((item) => item.id === productId)) state.pendingBill = null;
-  await persistSafely("Menu item removed", "Menu item removed locally. Cloud sync failed.");
-  render();
 }
 
 async function backToTables() {
