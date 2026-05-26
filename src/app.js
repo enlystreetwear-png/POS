@@ -462,7 +462,14 @@ function render() {
   }
   if (typeof state.restoreMainScroll === "number") {
     const main = document.querySelector(".main");
-    if (main) main.scrollTop = state.restoreMainScroll;
+    const scrollTop = state.restoreMainScroll;
+    if (main) {
+      main.scrollTop = scrollTop;
+      requestAnimationFrame(() => {
+        const nextMain = document.querySelector(".main");
+        if (nextMain) nextMain.scrollTop = scrollTop;
+      });
+    }
     state.restoreMainScroll = null;
   }
 }

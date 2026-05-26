@@ -2532,6 +2532,10 @@ textarea:focus {
     justify-content: start;
   }
 
+  .app-shell.view-pos.table-selected:not(.cart-open-shell) .product-grid {
+    padding-bottom: calc(74px + env(safe-area-inset-bottom));
+  }
+
   .product-grid .empty {
     grid-column: 1 / -1;
   }
