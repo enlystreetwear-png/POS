@@ -991,6 +991,8 @@ textarea:focus {
 
 .product-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   text-align: left;
   transition: transform 160ms ease, box-shadow 160ms ease;
@@ -1010,7 +1012,8 @@ textarea:focus {
 .product-add-area {
   width: 100%;
   height: 100%;
-  display: block;
+  display: grid;
+  grid-template-rows: auto 1fr;
   padding: 0;
   background: transparent;
   color: inherit;
@@ -1057,7 +1060,9 @@ textarea:focus {
 }
 
 .product-art {
+  width: 100%;
   aspect-ratio: 4 / 3;
+  overflow: hidden;
   background:
     linear-gradient(135deg, rgba(0, 0, 0, 0.1), rgba(31, 41, 51, 0.08)),
     #f4f5f7;
@@ -1069,9 +1074,11 @@ textarea:focus {
 }
 
 .product-art img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .product-thumb {
@@ -1081,6 +1088,7 @@ textarea:focus {
   place-items: center;
   border-radius: 8px;
   object-fit: cover;
+  object-position: center;
   background: #f4f5f7;
   color: var(--brand);
   font-weight: 800;
@@ -2544,7 +2552,7 @@ textarea:focus {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    display: block;
+    display: flex;
     border-radius: 8px;
     box-shadow: 0 8px 18px rgba(17, 24, 39, 0.08);
   }
@@ -2570,7 +2578,7 @@ textarea:focus {
   }
 
   .product-art {
-    aspect-ratio: 1 / 0.62;
+    aspect-ratio: 4 / 3;
     font-size: 19px;
   }
 
