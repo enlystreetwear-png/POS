@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260526-mobile-gap";
+const assetVersion = "20260526-scroll-anchor";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -104,6 +104,7 @@ const state = {
   categoryDragSuppressUntil: 0,
   mobileCartOpen: false,
   restoreMainScroll: null,
+  restoreProductAnchor: null,
   modal: null,
   authError: "",
   lastReceipt: null,
@@ -461,16 +462,24 @@ function render() {
     state.focusReportSearch = false;
   }
   if (typeof state.restoreMainScroll === "number") {
-    const main = document.querySelector(".main");
     const scrollTop = state.restoreMainScroll;
-    if (main) {
+    const anchor = state.restoreProductAnchor;
+    const applyScroll = () => {
+      const main = document.querySelector(".main");
+      if (!main) return;
       main.scrollTop = scrollTop;
-      requestAnimationFrame(() => {
-        const nextMain = document.querySelector(".main");
-        if (nextMain) nextMain.scrollTop = scrollTop;
-      });
-    }
+      if (!anchor) return;
+      const anchoredButton = [...document.querySelectorAll("[data-add]")].find((button) => button.dataset.add === anchor.id);
+      const anchoredCard = anchoredButton?.closest(".product-card");
+      if (anchoredCard) main.scrollTop += anchoredCard.getBoundingClientRect().top - anchor.top;
+    };
+    applyScroll();
+    requestAnimationFrame(() => {
+      applyScroll();
+      requestAnimationFrame(applyScroll);
+    });
     state.restoreMainScroll = null;
+    state.restoreProductAnchor = null;
   }
 }
 
@@ -1715,10 +1724,10 @@ function bindEvents() {
     });
   });
   document.querySelectorAll("[data-add]").forEach((button) => {
-    button.addEventListener("click", () => addToCart(button.dataset.add));
+    button.addEventListener("click", () => addToCart(button.dataset.add, button));
   });
-  document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1)));
-  document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1)));
+  document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1, button)));
+  document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1, button)));
   document.querySelector("#clear-cart")?.addEventListener("click", async () => {
     const tableId = state.selectedTableId;
     const hadItems = Boolean(tableId && (state.data.openBills[tableId] || []).length);
@@ -2048,10 +2057,18 @@ function updateSummaryOnly() {
   }
 }
 
-function addToCart(id) {
+function captureMenuScrollAnchor(productId, sourceElement) {
+  const main = document.querySelector(".main");
+  state.restoreMainScroll = main?.scrollTop ?? 0;
+  const card = sourceElement?.closest?.(".product-card")
+    || [...document.querySelectorAll("[data-add]")].find((button) => button.dataset.add === productId)?.closest(".product-card");
+  state.restoreProductAnchor = card ? { id: productId, top: card.getBoundingClientRect().top } : null;
+}
+
+function addToCart(id, sourceElement = null) {
   if (!state.selectedTableId) return;
   state.pendingBill = null;
-  state.restoreMainScroll = document.querySelector(".main")?.scrollTop ?? 0;
+  captureMenuScrollAnchor(id, sourceElement);
   const product = state.data.products.find((item) => item.id === id);
   if (!product || Number(product.stock) <= 0) return alert("This product is out of stock.");
   const cart = currentCart();
@@ -2062,9 +2079,9 @@ function addToCart(id) {
   render();
 }
 
-function changeQty(id, amount) {
+function changeQty(id, amount, sourceElement = null) {
   state.pendingBill = null;
-  state.restoreMainScroll = document.querySelector(".main")?.scrollTop ?? 0;
+  captureMenuScrollAnchor(id, sourceElement);
   const cart = currentCart();
   const item = cart.find((cartItem) => cartItem.id === id);
   if (!item) return;

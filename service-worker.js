@@ -1,4 +1,4 @@
-const CACHE_NAME = "pondypos-offline-20260526-mobile-gap";
+const CACHE_NAME = "pondypos-offline-20260526-scroll-anchor";
 const APP_SHELL = [
   "/",
   "/index.html",
