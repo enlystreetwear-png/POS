@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260526-scroll-anchor";
+const assetVersion = "20260526-silent-cart-save";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -338,11 +338,12 @@ async function persistSafely(successMessage, errorMessage = "Saved locally. Clou
   }
 }
 
-function persistInBackground(errorMessage = "Saved locally. Cloud sync pending.") {
+function persistInBackground(errorMessage = "Saved locally. Cloud sync pending.", options = {}) {
+  const { showToast = true, renderOnError = true } = options;
   persist().catch((error) => {
     console.warn(errorMessage, error);
-    if (!state.toast) setToast(errorMessage, "error");
-    render();
+    if (showToast && !state.toast) setToast(errorMessage, "error");
+    if (renderOnError) render();
   });
 }
 
@@ -2075,7 +2076,7 @@ function addToCart(id, sourceElement = null) {
   const existing = cart.find((item) => item.id === id);
   if (existing) existing.qty += 1;
   else cart.push({ id: product.id, name: product.name, price: Number(product.price), qty: 1 });
-  persistInBackground("Item saved locally. Cloud sync pending.");
+  persistInBackground("Item saved locally. Cloud sync pending.", { showToast: false, renderOnError: false });
   render();
 }
 
@@ -2090,7 +2091,7 @@ function changeQty(id, amount, sourceElement = null) {
   const tableId = state.selectedTableId;
   setCurrentCart(nextCart);
   syncActiveKotsWithTable(tableId, nextCart);
-  persistInBackground("Quantity saved locally. Cloud sync pending.");
+  persistInBackground("Quantity saved locally. Cloud sync pending.", { showToast: false, renderOnError: false });
   render();
 }
 
