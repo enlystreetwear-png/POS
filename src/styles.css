@@ -301,7 +301,7 @@ button {
 }
 
 .dashboard-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   max-width: 100%;
 }
 
@@ -486,6 +486,19 @@ button {
   display: block;
   margin-top: 8px;
   font-size: 26px;
+}
+
+button.metric {
+  color: var(--ink);
+  text-align: left;
+}
+
+.dashboard-metric.ok strong {
+  color: #15803d;
+}
+
+.dashboard-metric.danger strong {
+  color: #b91c1c;
 }
 
 .panel-header {

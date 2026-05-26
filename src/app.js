@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260526-silent-cart-save";
+const assetVersion = "20260527-owner-dashboard";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -690,64 +690,77 @@ const views = {
 function renderDashboard() {
   const today = new Date().toDateString();
   const todaysSales = state.data.sales.filter((sale) => new Date(sale.createdAt).toDateString() === today);
-  const revenue = todaysSales.reduce((sum, sale) => sum + sale.total, 0);
-  const openTables = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length);
-  const openTableValue = openTables.reduce((sum, table) => sum + tableTotal(table.id), 0);
-  const activeKots = (state.data.kots || []).filter((kot) => kot.status !== "billed");
-  const lowStockProducts = state.data.products.filter((product) => Number(product.stock) <= 5);
-  const lowStock = lowStockProducts.length;
-  const avgBill = todaysSales.length ? revenue / todaysSales.length : 0;
-  const cashRevenue = todaysSales.filter((sale) => sale.payment === "Cash").reduce((sum, sale) => sum + sale.total, 0);
-  const digitalRevenue = Math.max(0, revenue - cashRevenue);
-  const tableLoad = percent(openTables.length, Math.max(1, state.data.tables.length));
-  const stockHealth = percent(Math.max(0, state.data.products.length - lowStock), Math.max(1, state.data.products.length));
-  const cashShare = percent(cashRevenue, Math.max(1, revenue));
+  const revenue = todaysSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const expenses = dashboardExpenses().filter((expense) => new Date(expense.date).toDateString() === today);
+  const workers = dashboardWorkers();
+  const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const salaryTotal = workers.reduce((sum, worker) => sum + Number(worker.salary || 0), 0);
+  const profit = revenue - expenseTotal - salaryTotal;
+  const topItems = topSoldItems(todaysSales);
   return `
     <section class="grid dashboard-grid">
-      ${metric("Today sales", money(revenue), "indian-rupee")}
-      ${metric("Open table value", money(openTableValue), "utensils")}
-      ${metric("Invoices", todaysSales.length, "receipt")}
-      ${metric("Average bill", money(avgBill), "chart-no-axes-column")}
+      ${dashboardMetric("Total sale", money(revenue), "indian-rupee")}
+      ${dashboardMetric("Expenses", money(expenseTotal), "receipt-text", "expense")}
+      ${dashboardMetric("Profit", money(profit), profit >= 0 ? "trending-up" : "trending-down", "", profit >= 0 ? "ok" : "danger")}
+      ${dashboardMetric("Workers salary / day", money(salaryTotal), "users", "worker")}
+      ${dashboardMetric("Total orders", todaysSales.length, "shopping-bag")}
     </section>
-    <section class="dashboard-overview">
-      <div class="panel dashboard-command">
-        <div>
-          <span class="eyebrow">Live restaurant status</span>
-          <h3>${openTables.length ? `${openTables.length} table${openTables.length === 1 ? "" : "s"} running` : "Floor is clear"}</h3>
-          <p>${activeKots.length} active KOT${activeKots.length === 1 ? "" : "s"} • ${lowStock} low stock item${lowStock === 1 ? "" : "s"} • Last close ${lastClosingLabel()}</p>
-        </div>
-        <div class="dashboard-actions">
-          <button class="button" data-view="pos">${icon("utensils")} Open tables</button>
-          <button class="button secondary" id="close-shift">${icon("badge-check")} Close shift</button>
-          <button class="button secondary" id="export-backup">${icon("download")} Backup</button>
-        </div>
+    <section class="grid dashboard-split">
+      <div class="panel">
+        <div class="panel-header"><h3>Top sold today</h3><button class="button secondary" data-view="reports">${icon("chart-line")} Reports</button></div>
+        ${topItems.length
+          ? dashboardTable(["Item", "Qty", "Sales"], topItems.map((item) => [item.name, item.qty, money(item.total)]))
+          : `<div class="empty">No items sold today</div>`}
       </div>
-      <div class="dashboard-rings">
-        ${ringChart("Table load", tableLoad, `${openTables.length}/${state.data.tables.length}`, "occupied")}
-        ${ringChart("Cash sales", cashShare, money(cashRevenue), digitalRevenue ? `${money(digitalRevenue)} digital` : "No digital sales")}
-        ${ringChart("Stock health", stockHealth, `${state.data.products.length - lowStock}/${state.data.products.length}`, lowStock ? `${lowStock} low` : "Healthy")}
+      <div class="panel">
+        <div class="panel-header"><h3>Profit calculation</h3><button class="button secondary" data-dashboard-action="expense">${icon("plus")} Add expense</button></div>
+        ${dashboardTable(["Type", "Amount"], [["Total sale", money(revenue)], ["Expenses", money(expenseTotal)], ["Workers salary / day", money(salaryTotal)], ["Total profit", money(profit)]])}
       </div>
     </section>
     <section class="grid dashboard-split">
       <div class="panel">
-        <div class="panel-header"><h3>Running tables</h3><button class="button secondary" data-view="pos">${icon("arrow-right")} Billing</button></div>
-        ${openTables.length ? renderOpenTableList(openTables) : `<div class="empty">No running table bills right now</div>`}
+        <div class="panel-header"><h3>Today expenses</h3><button class="button secondary" data-dashboard-action="expense">${icon("plus")} Expense</button></div>
+        ${expenses.length
+          ? dashboardTable(["Bought item", "Amount"], expenses.map((expense) => [expense.item, money(expense.amount)]))
+          : `<div class="empty">No expenses added today</div>`}
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Action queue</h3><button class="button secondary" data-view="products">${icon("boxes")} Stock</button></div>
-        <div class="health-list">
-          ${queueRow(activeKots.length ? "warn" : "ok", "Kitchen tickets", activeKots.length ? `${activeKots.length} KOTs waiting or cooking` : "No pending kitchen tickets", activeKots.length ? "scroll-text" : "circle-check")}
-          ${queueRow(openTables.length ? "warn" : "ok", "Open bills", openTables.length ? `${openTables.length} bills need settlement` : "No open bills", openTables.length ? "receipt" : "circle-check")}
-          ${queueRow(lowStock ? "warn" : "ok", "Low stock", lowStock ? lowStockProducts.slice(0, 3).map((item) => item.name).join(", ") : "All menu stock looks fine", lowStock ? "triangle-alert" : "circle-check")}
-          ${queueRow(state.syncStatus === "error" ? "warn" : "ok", "Cloud sync", syncLabel(), syncIcon())}
-        </div>
+        <div class="panel-header"><h3>Workers salary</h3><button class="button secondary" data-dashboard-action="worker">${icon("plus")} Worker</button></div>
+        ${workers.length
+          ? dashboardTable(["Worker", "Role", "Salary / day"], workers.map((worker) => [worker.name, worker.role, money(worker.salary)]))
+          : `<div class="empty">No workers added</div>`}
       </div>
     </section>
-    <section class="panel dashboard-recent">
-      <div class="panel-header"><h3>Recent invoices</h3><div class="toolbar"><button class="button secondary" data-view="reports">${icon("chart-line")} Reports</button><button class="button secondary" data-view="sales">${icon("arrow-right")} View sales</button></div></div>
-      ${renderSaleList(state.data.sales.slice(0, 5))}
-    </section>
   `;
+}
+
+function dashboardExpenses() {
+  return state.data.modules?.dashboardExpenses?.entries || [];
+}
+
+function dashboardWorkers() {
+  return state.data.modules?.dashboardWorkers?.entries || [];
+}
+
+function topSoldItems(sales) {
+  const rows = new Map();
+  sales.forEach((sale) => sale.items.forEach((item) => {
+    const row = rows.get(item.name) || { name: item.name, qty: 0, total: 0 };
+    row.qty += Number(item.qty || 0);
+    row.total += Number(item.qty || 0) * Number(item.price || 0);
+    rows.set(item.name, row);
+  }));
+  return [...rows.values()].sort((a, b) => b.qty - a.qty || b.total - a.total).slice(0, 8);
+}
+
+function dashboardMetric(label, value, iconName, action = "", tone = "") {
+  const tag = action ? "button" : "div";
+  const actionAttr = action ? ` data-dashboard-action="${action}"` : "";
+  return `<${tag} class="metric dashboard-metric ${tone}"${actionAttr}>${icon(iconName)}<span>${label}</span><strong>${value}</strong></${tag}>`;
+}
+
+function dashboardTable(headers, rows) {
+  return `<div class="table-scroll"><table class="table report-table"><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 function percent(value, total) {
@@ -1371,6 +1384,8 @@ function productThumb(product = {}) {
 function renderModal() {
   if (state.modal.type === "product") return renderProductModal(state.modal.product);
   if (state.modal.type === "customer") return renderCustomerModal();
+  if (state.modal.type === "dashboard-expense") return renderDashboardExpenseModal();
+  if (state.modal.type === "dashboard-worker") return renderDashboardWorkerModal();
   if (state.modal.type === "receipt") return renderReceiptModal(state.modal.sale);
   if (state.modal.type === "kot") return renderKotModal(state.modal.kot);
   if (state.modal.type === "action") return renderActionModal(state.modal);
@@ -1433,6 +1448,40 @@ function renderCustomerModal() {
           <div class="field" style="grid-column:1/-1"><label>Email</label><input class="input" id="customer-email" type="email"></div>
         </div>
         <button class="button" id="save-customer" style="margin-top:14px">${icon("save")} Save customer</button>
+      </section>
+    </div>
+  `;
+}
+
+function renderDashboardExpenseModal() {
+  const today = new Date().toISOString().slice(0, 10);
+  return `
+    <div class="modal-backdrop">
+      <section class="modal">
+        <div class="panel-header"><h3>Add expense</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
+        <div class="form-grid">
+          <div class="field"><label>Bought item</label><input class="input" id="dashboard-expense-item" placeholder="Rice bag, vegetables, gas refill"></div>
+          <div class="field"><label>Amount</label><input class="input" id="dashboard-expense-amount" type="number" min="0" placeholder="0"></div>
+          <div class="field"><label>Date</label><input class="input" id="dashboard-expense-date" type="date" value="${today}"></div>
+          <div class="field"><label>Note</label><input class="input" id="dashboard-expense-note" placeholder="Supplier or bill note"></div>
+        </div>
+        <button class="button" id="save-dashboard-expense" style="margin-top:14px">${icon("save")} Save expense</button>
+      </section>
+    </div>
+  `;
+}
+
+function renderDashboardWorkerModal() {
+  return `
+    <div class="modal-backdrop">
+      <section class="modal">
+        <div class="panel-header"><h3>Add worker salary</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
+        <div class="form-grid">
+          <div class="field"><label>Worker name</label><input class="input" id="dashboard-worker-name" placeholder="Staff name"></div>
+          <div class="field"><label>Role</label><input class="input" id="dashboard-worker-role" placeholder="Chef, cashier, waiter"></div>
+          <div class="field"><label>Salary per day</label><input class="input" id="dashboard-worker-salary" type="number" min="0" placeholder="0"></div>
+        </div>
+        <button class="button" id="save-dashboard-worker" style="margin-top:14px">${icon("save")} Save worker</button>
       </section>
     </div>
   `;
@@ -1675,6 +1724,14 @@ function bindEvents() {
   document.querySelector("#import-backup")?.addEventListener("change", importBackup);
   document.querySelector("#close-shift")?.addEventListener("click", () => handleAction("close-shift", "Close Shift"));
   document.querySelector("#save-close-shift")?.addEventListener("click", closeShift);
+  document.querySelectorAll("[data-dashboard-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.modal = { type: button.dataset.dashboardAction === "worker" ? "dashboard-worker" : "dashboard-expense" };
+      render();
+    });
+  });
+  document.querySelector("#save-dashboard-expense")?.addEventListener("click", saveDashboardExpense);
+  document.querySelector("#save-dashboard-worker")?.addEventListener("click", saveDashboardWorker);
   document.querySelectorAll("[data-action][data-action-label]").forEach((button) => {
     button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.actionLabel));
   });
@@ -2449,6 +2506,48 @@ async function saveModuleSettings() {
   }
   state.modal = null;
   await persistSafely("Module settings saved", "Module settings saved locally. Cloud sync failed.");
+  render();
+}
+
+async function saveDashboardExpense() {
+  const item = document.querySelector("#dashboard-expense-item")?.value.trim();
+  const amount = Number(document.querySelector("#dashboard-expense-amount")?.value || 0);
+  const date = document.querySelector("#dashboard-expense-date")?.value || new Date().toISOString().slice(0, 10);
+  const note = document.querySelector("#dashboard-expense-note")?.value.trim() || "";
+  if (!item) return setToast("Enter the bought item name", "error");
+  if (amount <= 0) return setToast("Enter a valid expense amount", "error");
+  state.data.modules ||= {};
+  state.data.modules.dashboardExpenses ||= { entries: [] };
+  state.data.modules.dashboardExpenses.entries.unshift({
+    id: newId(),
+    item,
+    amount,
+    date: new Date(`${date}T00:00:00`).toISOString(),
+    note,
+    createdAt: new Date().toISOString()
+  });
+  state.modal = null;
+  await persistSafely("Expense saved", "Expense saved locally. Cloud sync failed.");
+  render();
+}
+
+async function saveDashboardWorker() {
+  const name = document.querySelector("#dashboard-worker-name")?.value.trim();
+  const role = document.querySelector("#dashboard-worker-role")?.value.trim() || "Staff";
+  const salary = Number(document.querySelector("#dashboard-worker-salary")?.value || 0);
+  if (!name) return setToast("Enter worker name", "error");
+  if (salary <= 0) return setToast("Enter valid salary per day", "error");
+  state.data.modules ||= {};
+  state.data.modules.dashboardWorkers ||= { entries: [] };
+  state.data.modules.dashboardWorkers.entries.unshift({
+    id: newId(),
+    name,
+    role,
+    salary,
+    createdAt: new Date().toISOString()
+  });
+  state.modal = null;
+  await persistSafely("Worker salary saved", "Worker salary saved locally. Cloud sync failed.");
   render();
 }
 
