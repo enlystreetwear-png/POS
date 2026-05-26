@@ -1111,45 +1111,34 @@ function renderSubscription() {
 
 function renderOperations() {
   const groups = [
-    ["Orders & Billing", [
-      ["Orders", "receipt-text", "View all current and past restaurant orders."],
-      ["Online Orders", "monitor-up", "Track online order channels."],
-      ["KOTs", "scroll-text", "Kitchen order tickets and preparation flow."],
-      ["Due Payment", "badge-indian-rupee", "Pending customer dues."],
-      ["Billing Screen", "receipt", "Open the active table billing screen."],
-      ["Live View", "radio", "Monitor running tables and live orders."],
-      ["Bill / KOT Print", "printer", "Printing setup for receipts and KOT."],
-      ["Table", "table", "Dining table layout and table controls."],
-      ["Custom Order Status", "workflow", "Food ready, dispatch, delivery, and custom statuses."]
+    ["Service Counter", [
+      ["Billing Screen", "receipt", "Open table billing."],
+      ["KOTs", "scroll-text", "Kitchen tickets."],
+      ["Live View", "radio", "Running tables."],
+      ["Due Payment", "badge-indian-rupee", "Customer dues."],
+      ["Close Shift", "badge-check", "End day summary."]
     ]],
-    ["Payments & Finance", [
-      ["Cash Flow", "hand-coins", "Daily cash movement."],
+    ["Menu & Floor", [
+      ["Menu", "book-open", "Items, prices and images."],
+      ["Table", "table", "Table layout."],
+      ["Customers", "users", "Guest records."],
+      ["Menu Item On Off", "toggle-left", "Item availability."],
+      ["Table Reservation", "calendar-check", "Guest bookings."]
+    ]],
+    ["Money & Reports", [
+      ["Cash Flow", "hand-coins", "Drawer status."],
       ["Expense", "circle-dollar-sign", "Restaurant expenses."],
-      ["Withdrawal", "landmark", "Cash withdrawal records."],
-      ["Cash Top-Up", "wallet", "Counter cash top-up."],
-      ["Currency Conversion", "coins", "Currency conversion setup."]
-    ]],
-    ["Menu & Inventory", [
-      ["Menu", "book-open", "Food and beverage item list."],
-      ["Menu Item On Off", "toggle-left", "Temporarily hide unavailable items."],
-      ["Tax", "badge-percent", "GST and tax configuration."],
       ["Discount", "badge", "Discount rules and permissions."],
-      ["Table Reservation", "calendar-check", "Guest reservation controls."],
-      ["Customers", "users", "Guest profiles and dues."],
-      ["Feedback", "message-square-quote", "Customer feedback records."],
-      ["LED Display", "monitor", "Kitchen and order display settings."],
-      ["Inventory", "boxes", "Stock and ingredient controls."],
-      ["Dual Screen", "monitor-dot", "Customer-facing display setup."]
+      ["Tax", "badge-percent", "GST setup."],
+      ["Reports", "chart-line", "Sales reports."]
     ]],
     ["System Settings", [
-      ["Billing User Profile", "id-card", "Cashier and staff access."],
-      ["Manual Sync", "refresh-cw", "Push and pull cloud data."],
-      ["Close Shift", "badge-check", "End-of-day counter close and summary."],
-      ["Backup & Restore", "database-backup", "Export and restore restaurant data."],
-      ["Alerts", "bell", "System and stock alerts."],
-      ["Service Renewal", "rotate-ccw", "Subscription and service renewal."],
-      ["Help", "circle-help", "Support and help center."],
-      ["Language Profiles", "languages", "Regional labels and print language."]
+      ["Bill / KOT Print", "printer", "Print rules."],
+      ["Manual Sync", "refresh-cw", "Cloud sync."],
+      ["Backup & Restore", "database-backup", "Data backup."],
+      ["Billing User Profile", "id-card", "Staff profile."],
+      ["Alerts", "bell", "Alerts."],
+      ["Service Renewal", "rotate-ccw", "Annual plan."]
     ]]
   ];
   return groups.map(([title, items]) => `
@@ -1157,6 +1146,7 @@ function renderOperations() {
       <div class="panel-header"><h3>${title}</h3></div>
       <div class="ops-grid">${items.map(([label, iconName, text]) => `
         <button class="ops-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">
+          ${icon(iconName)}
           <span><strong>${label}</strong><small>${text}</small></span>
         </button>
       `).join("")}</div>
@@ -1296,22 +1286,26 @@ function reportTable(headers, rows) {
 
 function renderOutletSettings() {
   const groups = [
-    ["Billing Screen", [
-      ["Display", "monitor", "Customise what appears on the billing screen."],
-      ["Calculations", "calculator", "Configure service charges and rounding rules."],
-      ["Linked Services", "life-buoy", "Set how add-on services work with your POS system."],
-      ["Table Management", "table-2", "Add or remove restaurant tables."],
-      ["Print", "printer", "Manage printing rules for Bill and KOT."],
-      ["Customer", "user-round", "Configure phone validation and dues."]
+    ["Restaurant Setup", [
+      ["Table Management", "table-2", "Add or remove tables."],
+      ["Print", "printer", "Bill and KOT printing."],
+      ["Tax", "badge-percent", "GST and tax rules."],
+      ["Customer", "user-round", "Guest and credit rules."],
+      ["Billing System", "scroll-text", "Invoice and counter setup."]
     ]],
-    ["Online / Advance Order", [
-      ["Online/Advance Order Configuration", "bell-ring", "Control auto-accept, timings, and cancellations."]
+    ["Billing Rules", [
+      ["Display", "monitor", "Billing screen layout."],
+      ["Calculations", "calculator", "Service charge and rounding."],
+      ["Discount", "badge", "Discount permissions."],
+      ["Menu Item On Off", "toggle-left", "Availability control."],
+      ["Table Reservation", "calendar-check", "Reservation rules."]
     ]],
-    ["System Setting", [
-      ["Billing System", "scroll-text", "Set how your POS updates with the central system."],
-      ["Tax", "badge-percent", "GST, CGST, SGST and inclusive tax setup."],
-      ["Language Profiles", "languages", "Manage regional labels and print language."],
-      ["Billing User Profile", "id-card", "Cashier, captain and manager access."]
+    ["Data & Account", [
+      ["Manual Sync", "refresh-cw", "Push and pull Firebase data."],
+      ["Backup & Restore", "database-backup", "Export or restore data."],
+      ["Billing User Profile", "id-card", "Cashier and owner profile."],
+      ["Alerts", "bell", "Stock and open bill alerts."],
+      ["Language Profiles", "languages", "Receipt language."]
     ]]
   ];
   return `
@@ -1334,7 +1328,7 @@ function renderOutletSettings() {
       <section class="panel settings-panel">
         <div class="panel-header"><h3>${title}</h3></div>
         <div class="settings-grid">${items.map(([label, iconName, text]) => `
-          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}"><span><strong>${label}</strong><small>${text}</small></span></button>
+          <button class="setting-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">${icon(iconName)}<span><strong>${label}</strong><small>${text}</small></span></button>
         `).join("")}</div>
       </section>
     `).join("")}
@@ -1899,6 +1893,7 @@ async function handleAction(action, label) {
     menu: "products",
     inventory: "products",
     customers: "customers",
+    reports: "reports",
     "service-renewal": "subscription"
   };
   const reportActions = {
