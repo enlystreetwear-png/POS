@@ -306,7 +306,7 @@ button {
 }
 
 .dashboard-split {
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   margin-top: 16px;
   align-items: start;
   max-width: 100%;
@@ -401,6 +401,117 @@ button {
 
 .dashboard-recent {
   margin-top: 16px;
+}
+
+.dashboard-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.dashboard-row strong,
+.dashboard-row span {
+  min-width: 0;
+  display: block;
+}
+
+.dashboard-row strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.dashboard-row span,
+.dashboard-row small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-row b {
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.dashboard-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dashboard-summary span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.dashboard-summary b {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-summary small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.top-sold-chart {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mini-ring {
+  width: 76px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle closest-side, #ffffff 63%, transparent 65%),
+    conic-gradient(#111111 calc(var(--value) * 1%), #dbe2ea 0);
+}
+
+.mini-ring strong {
+  font-size: 15px;
+}
+
+.top-sold-chart span,
+.top-sold-chart small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.top-sold-chart strong {
+  display: block;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
 }
 
 .status-tile {

@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260527-owner-dashboard";
+const assetVersion = "20260527-clean-dashboard";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -688,10 +688,10 @@ const views = {
 };
 
 function renderDashboard() {
-  const today = new Date().toDateString();
-  const todaysSales = state.data.sales.filter((sale) => new Date(sale.createdAt).toDateString() === today);
+  const today = localDateKey();
+  const todaysSales = state.data.sales.filter((sale) => localDateKey(sale.createdAt) === today);
   const revenue = todaysSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
-  const expenses = dashboardExpenses().filter((expense) => new Date(expense.date).toDateString() === today);
+  const expenses = dashboardExpenses().filter((expense) => localDateKey(expense.date) === today);
   const workers = dashboardWorkers();
   const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const salaryTotal = workers.reduce((sum, worker) => sum + Number(worker.salary || 0), 0);
@@ -707,27 +707,22 @@ function renderDashboard() {
     </section>
     <section class="grid dashboard-split">
       <div class="panel">
-        <div class="panel-header"><h3>Top sold today</h3><button class="button secondary" data-view="reports">${icon("chart-line")} Reports</button></div>
+        <div class="panel-header"><h3>Top sold today</h3></div>
         ${topItems.length
-          ? dashboardTable(["Item", "Qty", "Sales"], topItems.map((item) => [item.name, item.qty, money(item.total)]))
+          ? `${dashboardTopSoldChart(topItems)}${dashboardRows(topItems.map((item) => [item.name, `${item.qty} sold`, money(item.total)]))}`
           : `<div class="empty">No items sold today</div>`}
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Profit calculation</h3><button class="button secondary" data-dashboard-action="expense">${icon("plus")} Add expense</button></div>
-        ${dashboardTable(["Type", "Amount"], [["Total sale", money(revenue)], ["Expenses", money(expenseTotal)], ["Workers salary / day", money(salaryTotal)], ["Total profit", money(profit)]])}
-      </div>
-    </section>
-    <section class="grid dashboard-split">
-      <div class="panel">
         <div class="panel-header"><h3>Today expenses</h3><button class="button secondary" data-dashboard-action="expense">${icon("plus")} Expense</button></div>
+        ${dashboardExpenseSummary(expenseTotal, salaryTotal)}
         ${expenses.length
-          ? dashboardTable(["Bought item", "Amount"], expenses.map((expense) => [expense.item, money(expense.amount)]))
+          ? dashboardRows(expenses.map((expense) => [expense.item, expense.note || localDateKey(expense.date), money(expense.amount)]))
           : `<div class="empty">No expenses added today</div>`}
       </div>
       <div class="panel">
         <div class="panel-header"><h3>Workers salary</h3><button class="button secondary" data-dashboard-action="worker">${icon("plus")} Worker</button></div>
         ${workers.length
-          ? dashboardTable(["Worker", "Role", "Salary / day"], workers.map((worker) => [worker.name, worker.role, money(worker.salary)]))
+          ? dashboardRows(workers.map((worker) => [worker.name, worker.role, money(worker.salary)]))
           : `<div class="empty">No workers added</div>`}
       </div>
     </section>
@@ -735,11 +730,22 @@ function renderDashboard() {
 }
 
 function dashboardExpenses() {
-  return state.data.modules?.dashboardExpenses?.entries || [];
+  const entries = state.data.modules?.dashboardExpenses?.entries;
+  return Array.isArray(entries) ? entries : [];
 }
 
 function dashboardWorkers() {
-  return state.data.modules?.dashboardWorkers?.entries || [];
+  const entries = state.data.modules?.dashboardWorkers?.entries;
+  return Array.isArray(entries) ? entries : [];
+}
+
+function localDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function topSoldItems(sales) {
@@ -759,8 +765,39 @@ function dashboardMetric(label, value, iconName, action = "", tone = "") {
   return `<${tag} class="metric dashboard-metric ${tone}"${actionAttr}>${icon(iconName)}<span>${label}</span><strong>${value}</strong></${tag}>`;
 }
 
-function dashboardTable(headers, rows) {
-  return `<div class="table-scroll"><table class="table report-table"><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+function dashboardRows(rows) {
+  return `<div class="dashboard-list">${rows.map(([title, meta, value]) => `
+    <div class="dashboard-row">
+      <div><strong>${title}</strong><span>${meta}</span></div>
+      <b>${value}</b>
+    </div>
+  `).join("")}</div>`;
+}
+
+function dashboardExpenseSummary(expenseTotal, salaryTotal) {
+  return `
+    <div class="dashboard-summary">
+      <span><b>${money(expenseTotal)}</b><small>Purchase expenses</small></span>
+      <span><b>${money(salaryTotal)}</b><small>Worker salary / day</small></span>
+      <span><b>${money(expenseTotal + salaryTotal)}</b><small>Total daily cost</small></span>
+    </div>
+  `;
+}
+
+function dashboardTopSoldChart(items) {
+  const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const topItem = items[0];
+  const topShare = percent(topItem?.qty || 0, Math.max(1, totalQty));
+  return `
+    <div class="top-sold-chart">
+      <div class="mini-ring" style="--value:${topShare}"><strong>${topShare}%</strong></div>
+      <div>
+        <span>Top item</span>
+        <strong>${topItem.name}</strong>
+        <small>${topItem.qty} of ${totalQty} items sold today</small>
+      </div>
+    </div>
+  `;
 }
 
 function percent(value, total) {
@@ -1454,7 +1491,7 @@ function renderCustomerModal() {
 }
 
 function renderDashboardExpenseModal() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey();
   return `
     <div class="modal-backdrop">
       <section class="modal">
@@ -2512,12 +2549,13 @@ async function saveModuleSettings() {
 async function saveDashboardExpense() {
   const item = document.querySelector("#dashboard-expense-item")?.value.trim();
   const amount = Number(document.querySelector("#dashboard-expense-amount")?.value || 0);
-  const date = document.querySelector("#dashboard-expense-date")?.value || new Date().toISOString().slice(0, 10);
+  const date = document.querySelector("#dashboard-expense-date")?.value || localDateKey();
   const note = document.querySelector("#dashboard-expense-note")?.value.trim() || "";
   if (!item) return setToast("Enter the bought item name", "error");
   if (amount <= 0) return setToast("Enter a valid expense amount", "error");
   state.data.modules ||= {};
   state.data.modules.dashboardExpenses ||= { entries: [] };
+  if (!Array.isArray(state.data.modules.dashboardExpenses.entries)) state.data.modules.dashboardExpenses.entries = [];
   state.data.modules.dashboardExpenses.entries.unshift({
     id: newId(),
     item,
@@ -2539,6 +2577,7 @@ async function saveDashboardWorker() {
   if (salary <= 0) return setToast("Enter valid salary per day", "error");
   state.data.modules ||= {};
   state.data.modules.dashboardWorkers ||= { entries: [] };
+  if (!Array.isArray(state.data.modules.dashboardWorkers.entries)) state.data.modules.dashboardWorkers.entries = [];
   state.data.modules.dashboardWorkers.entries.unshift({
     id: newId(),
     name,
