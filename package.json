@@ -5,7 +5,7 @@
   "description": "Mobile and desktop SaaS POS with billing, inventory, customers, Firebase-ready cloud storage, and Vercel deployment.",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
-    "build": "echo 'Static app: no build required'",
+    "build": "node scripts/write-firebase-config.mjs",
     "preview": "node scripts/dev-server.mjs"
   },
   "dependencies": {},
