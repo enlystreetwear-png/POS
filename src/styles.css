@@ -2678,11 +2678,11 @@ textarea:focus {
   .table-hero {
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
+    grid-template-columns: minmax(0, 1fr) minmax(88px, auto);
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
+    gap: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
     max-width: 100%;
   }
 
@@ -2692,36 +2692,36 @@ textarea:focus {
   }
 
   .table-hero h3 {
-    margin: 2px 0 3px;
-    font-size: 20px;
-    line-height: 1;
+    margin: 3px 0 5px;
+    font-size: 24px;
+    line-height: 1.05;
   }
 
   .table-hero p {
     max-width: 100%;
-    font-size: 11px;
-    line-height: 1.25;
+    font-size: 13px;
+    line-height: 1.35;
   }
 
   .table-hero .eyebrow {
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0;
   }
 
   .table-summary {
     min-width: 0;
-    width: clamp(72px, 22vw, 88px);
-    padding: 7px 9px;
+    width: clamp(88px, 26vw, 108px);
+    padding: 10px;
   }
 
   .table-summary strong {
-    font-size: 20px;
+    font-size: 24px;
     line-height: 1;
   }
 
   .table-summary span {
-    font-size: 11px;
-    line-height: 1.1;
+    font-size: 12px;
+    line-height: 1.15;
   }
 
   .table-tools {
