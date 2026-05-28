@@ -3,3 +3,7 @@ dist
 .env
 .DS_Store
 *.log
+public/firebase-config.js
+android-printer-test/build/
+android-printer-test/*.apk
+android-printer-test/*.idsig

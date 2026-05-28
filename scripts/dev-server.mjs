@@ -41,7 +41,12 @@ function sendHeaders(response, status, contentType) {
   });
 }
 
-function serveHtml(response, filePath) {
+function shouldUseLiveReload(request) {
+  const host = request.headers.host || "";
+  return host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.startsWith("[::1]");
+}
+
+function serveHtml(request, response, filePath) {
   let html = createReadStream(filePath, { encoding: "utf8" });
   let body = "";
   html.on("data", (chunk) => {
@@ -49,7 +54,7 @@ function serveHtml(response, filePath) {
   });
   html.on("end", () => {
     sendHeaders(response, 200, mimeTypes[".html"]);
-    response.end(body.replace("</body>", `${liveReloadSnippet}</body>`));
+    response.end(shouldUseLiveReload(request) ? body.replace("</body>", `${liveReloadSnippet}</body>`) : body);
   });
 }
 
@@ -75,7 +80,7 @@ function serveFile(request, response) {
 
   const extension = extname(filePath);
   if (extension === ".html") {
-    serveHtml(response, filePath);
+    serveHtml(request, response, filePath);
     return;
   }
 

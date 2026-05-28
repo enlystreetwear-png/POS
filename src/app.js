@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260527-clean-dashboard";
+const assetVersion = "20260528-android-print-bridge";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -23,11 +23,11 @@ function cloneData(value) {
 }
 
 const demoProducts = [
-  { id: newId(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, stock: 80, imageUrl: "" },
-  { id: newId(), name: "Paneer Butter Masala", sku: "CUR-102", category: "Curries", price: 220, cost: 96, stock: 45, imageUrl: "" },
-  { id: newId(), name: "Veg Biryani", sku: "RIC-210", category: "Rice Bowls", price: 180, cost: 82, stock: 55, imageUrl: "" },
-  { id: newId(), name: "Tandoori Roti", sku: "BRD-011", category: "Breads", price: 35, cost: 12, stock: 120, imageUrl: "" },
-  { id: newId(), name: "Fresh Lime Soda", sku: "BEV-044", category: "Beverages", price: 70, cost: 24, stock: 60, imageUrl: "" }
+  { id: newId(), name: "Masala Dosa", sku: "KIT-001", category: "South Indian", price: 90, cost: 38, imageUrl: "" },
+  { id: newId(), name: "Paneer Butter Masala", sku: "CUR-102", category: "Curries", price: 220, cost: 96, imageUrl: "" },
+  { id: newId(), name: "Veg Biryani", sku: "RIC-210", category: "Rice Bowls", price: 180, cost: 82, imageUrl: "" },
+  { id: newId(), name: "Tandoori Roti", sku: "BRD-011", category: "Breads", price: 35, cost: 12, imageUrl: "" },
+  { id: newId(), name: "Fresh Lime Soda", sku: "BEV-044", category: "Beverages", price: 70, cost: 24, imageUrl: "" }
 ];
 
 const seed = {
@@ -76,6 +76,8 @@ const state = {
   sidebarExpanded: readStorage("pondypos-sidebar-expanded", "countercloud-sidebar-expanded") === "true",
   reportKey: "category",
   reportSearch: "",
+  reportDate: localDateKey(),
+  selectedReportSaleId: "",
   firebaseConfigured: hasFirebaseConfig(),
   authReady: !hasFirebaseConfig(),
   authBusy: false,
@@ -165,11 +167,15 @@ function normalizeData(data) {
     tables: data.tables?.length ? data.tables : freshSeed.tables,
     openBills: data.openBills || {},
     kots: data.kots || [],
-    products: shouldUseRestaurantSeed(data.products) ? freshSeed.products : data.products,
+    products: normalizeProducts(shouldUseRestaurantSeed(data.products) ? freshSeed.products : data.products),
     customers: data.customers?.length ? data.customers : freshSeed.customers,
     sales: data.sales || [],
     closings: data.closings || []
   };
+}
+
+function normalizeProducts(products = []) {
+  return products.map(({ stock, ...product }) => product);
 }
 
 function shouldUseRestaurantSeed(products = []) {
@@ -231,12 +237,12 @@ async function initFirebase() {
   }
   state.firebaseInitializing = true;
   try {
-    const firebase = await Promise.all([
+    const firebase = await withTimeout(Promise.all([
       import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
       import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
       import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js"),
       import("https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js")
-    ]);
+    ]), 8000, "Firebase connection timed out");
     const [{ initializeApp }, authMod, fireMod, storageMod] = firebase;
     const firebaseApp = initializeApp(config);
     state.auth = authMod.getAuth(firebaseApp);
@@ -275,6 +281,13 @@ async function initFirebase() {
   } finally {
     state.firebaseInitializing = false;
   }
+}
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => window.setTimeout(() => reject(new Error(message)), ms))
+  ]);
 }
 
 async function pullCloudData() {
@@ -453,6 +466,7 @@ function escapeAttr(value = "") {
 }
 
 function render() {
+  if (state.view === "operations") state.view = "pos";
   app.innerHTML = !isAuthenticated() ? renderAuth() : renderShell();
   createIconsSafely();
   bindEvents();
@@ -578,10 +592,9 @@ function renderNav(className) {
   const items = [
     ["pos", "utensils", "Tables"],
     ["dashboard", "layout-dashboard", "Dashboard"],
-    ["operations", "sliders-horizontal", "Operations"],
     ["reports", "chart-line", "Reports"],
     ["settings", "settings", "Settings"],
-    ["products", "book-open", "Menu"],
+    ["products", "clipboard-list", "Menu"],
     ["customers", "users", "Guests"],
     ["sales", "receipt-text", "Orders"],
     ["subscription", "badge-indian-rupee", "Plan"]
@@ -589,7 +602,7 @@ function renderNav(className) {
   const mobileItems = [
     ["pos", "utensils", "Tables"],
     ["dashboard", "layout-dashboard", "Dashboard"],
-    ["operations", "sliders-horizontal", "Operations"],
+    ["products", "clipboard-list", "Menu"],
     ["reports", "chart-line", "Reports"],
     ["settings", "settings", "Settings"]
   ];
@@ -606,8 +619,7 @@ function renderMobileNav() {
 }
 
 function mobileActiveView() {
-  if (["products", "customers", "sales"].includes(state.view)) return "operations";
-  if (state.view === "subscription") return "settings";
+  if (["customers", "sales", "subscription"].includes(state.view)) return "settings";
   return state.view;
 }
 
@@ -615,11 +627,10 @@ function renderTopbar() {
   if (state.view === "pos") return "";
   const titles = {
     pos: ["Restaurant Tables", "Select a table, add menu items, accept payment, and print receipts."],
-    dashboard: ["Restaurant Dashboard", "Today’s revenue, open tables, orders, and stock health."],
-    operations: ["Operations", "Restaurant billing, payments, menu, and system modules in one place."],
-    reports: ["Reports", "Category, item, sales, order, employee, settlement, and counter summaries."],
+    dashboard: ["Restaurant Dashboard", "Today’s revenue, expenses, profit, and orders."],
+    reports: ["Reports", "Daily order summary and printable order details."],
     settings: ["Outlet Settings", "Configure billing screen, printing, taxes, customers, and restaurant profile."],
-    products: ["Menu And Stock", "Manage menu items, kitchen categories, pricing, stock, and images."],
+    products: ["Menu", "Manage menu items, kitchen categories, pricing, and images."],
     customers: ["Guests", "Track guest details and visit totals."],
     sales: ["Order History", "Review table invoices and reprint receipts."],
     subscription: ["Subscription", "Manage the one-year POS subscription for this store."]
@@ -678,7 +689,6 @@ function setToast(message, type = "success") {
 const views = {
   dashboard: renderDashboard,
   pos: renderPOS,
-  operations: renderOperations,
   reports: renderReports,
   settings: renderOutletSettings,
   products: renderProducts,
@@ -695,21 +705,21 @@ function renderDashboard() {
   const workers = dashboardWorkers();
   const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const salaryTotal = workers.reduce((sum, worker) => sum + Number(worker.salary || 0), 0);
-  const profit = revenue - expenseTotal - salaryTotal;
+  const totalExpenses = expenseTotal + salaryTotal;
+  const profit = revenue - totalExpenses;
   const topItems = topSoldItems(todaysSales);
   return `
     <section class="grid dashboard-grid">
       ${dashboardMetric("Total sale", money(revenue), "indian-rupee")}
-      ${dashboardMetric("Expenses", money(expenseTotal), "receipt-text", "expense")}
+      ${dashboardMetric("Expenses", money(totalExpenses), "receipt-text", "expense")}
       ${dashboardMetric("Profit", money(profit), profit >= 0 ? "trending-up" : "trending-down", "", profit >= 0 ? "ok" : "danger")}
-      ${dashboardMetric("Workers salary / day", money(salaryTotal), "users", "worker")}
       ${dashboardMetric("Total orders", todaysSales.length, "shopping-bag")}
     </section>
     <section class="grid dashboard-split">
       <div class="panel">
         <div class="panel-header"><h3>Top sold today</h3></div>
         ${topItems.length
-          ? `${dashboardTopSoldChart(topItems)}${dashboardRows(topItems.map((item) => [item.name, `${item.qty} sold`, money(item.total)]))}`
+          ? dashboardRows(topItems.map((item) => [item.name, `${item.qty} sold`, money(item.total)]))
           : `<div class="empty">No items sold today</div>`}
       </div>
       <div class="panel">
@@ -765,6 +775,10 @@ function dashboardMetric(label, value, iconName, action = "", tone = "") {
   return `<${tag} class="metric dashboard-metric ${tone}"${actionAttr}>${icon(iconName)}<span>${label}</span><strong>${value}</strong></${tag}>`;
 }
 
+function dashboardTable(headers, rows) {
+  return `<div class="table-scroll"><table class="table report-table"><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
 function dashboardRows(rows) {
   return `<div class="dashboard-list">${rows.map(([title, meta, value]) => `
     <div class="dashboard-row">
@@ -780,22 +794,6 @@ function dashboardExpenseSummary(expenseTotal, salaryTotal) {
       <span><b>${money(expenseTotal)}</b><small>Purchase expenses</small></span>
       <span><b>${money(salaryTotal)}</b><small>Worker salary / day</small></span>
       <span><b>${money(expenseTotal + salaryTotal)}</b><small>Total daily cost</small></span>
-    </div>
-  `;
-}
-
-function dashboardTopSoldChart(items) {
-  const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  const topItem = items[0];
-  const topShare = percent(topItem?.qty || 0, Math.max(1, totalQty));
-  return `
-    <div class="top-sold-chart">
-      <div class="mini-ring" style="--value:${topShare}"><strong>${topShare}%</strong></div>
-      <div>
-        <span>Top item</span>
-        <strong>${topItem.name}</strong>
-        <small>${topItem.qty} of ${totalQty} items sold today</small>
-      </div>
     </div>
   `;
 }
@@ -831,14 +829,12 @@ function statusTile(label, value, iconName) {
 }
 
 function businessHealth() {
-  const lowStock = state.data.products.filter((product) => Number(product.stock) <= 5).length;
   const hasFirebase = Boolean(state.user);
   const openBills = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length).length;
   const profileReady = Boolean(state.data.settings.shopName && state.data.settings.phone && state.data.settings.address);
   return [
     { status: hasFirebase ? "ok" : "warn", title: "Cloud account", text: hasFirebase ? "Data is separated by Firebase login." : "Login with phone or Google for cloud sync." },
     { status: profileReady ? "ok" : "warn", title: "Restaurant profile", text: profileReady ? "Receipt identity is ready." : "Add phone and address in Settings." },
-    { status: lowStock ? "warn" : "ok", title: "Inventory", text: lowStock ? `${lowStock} items need stock review.` : "Stock levels look healthy." },
     { status: openBills ? "warn" : "ok", title: "Open tables", text: openBills ? `${openBills} running bills need settlement.` : "No open table bills." }
   ];
 }
@@ -1006,7 +1002,7 @@ function renderProductCard(product) {
         <div class="product-art">${art}</div>
         <div class="product-body">
           <h4>${product.name}</h4>
-          <div class="product-meta"><span>${product.category || "General"}</span><span>Stock ${product.stock}</span></div>
+          <div class="product-meta"><span>${product.category || "General"}</span></div>
           <div class="product-meta"><span>${product.sku || "No SKU"}</span><span class="price">${money(product.price)}</span></div>
         </div>
       </button>
@@ -1056,8 +1052,8 @@ function renderProducts() {
         <h3>Menu items</h3>
         <button class="button" id="new-product">${icon("plus")} Menu item</button>
       </div>
-      <table class="table">
-        <thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+      <table class="table menu-table">
+        <thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th></th></tr></thead>
         <tbody>
           ${state.data.products.map((product) => `
             <tr>
@@ -1066,23 +1062,24 @@ function renderProducts() {
               <td>${product.sku || "-"}</td>
               <td>${product.category || "General"}</td>
               <td>${money(product.price)}</td>
-              <td>${product.stock}</td>
               <td><button class="icon-button" data-edit-product="${product.id}" title="Edit product">${icon("pencil")}</button></td>
             </tr>
           `).join("")}
         </tbody>
       </table>
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <div class="panel-header"><h3>Restaurant settings</h3></div>
-      <div class="form-grid">
-        ${settingField("shopName", "Restaurant name")}
-        ${settingField("phone", "Phone")}
-        ${settingField("gstin", "GSTIN")}
-        ${settingField("taxRate", "Tax rate %", "number")}
-        <div class="field" style="grid-column:1/-1"><label>Address</label><textarea id="setting-address">${state.data.settings.address || ""}</textarea></div>
+      <div class="menu-mobile-list">
+        ${state.data.products.map((product) => `
+          <article class="menu-mobile-card">
+            ${productThumb(product)}
+            <div>
+              <strong>${product.name}</strong>
+              <span>${product.category || "General"}${product.sku ? ` • ${product.sku}` : ""}</span>
+              <b>${money(product.price)}</b>
+            </div>
+            <button class="icon-button" data-edit-product="${product.id}" title="Edit product">${icon("pencil")}</button>
+          </article>
+        `).join("")}
       </div>
-      <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
     </section>
   `;
 }
@@ -1159,86 +1156,35 @@ function renderSubscription() {
   `;
 }
 
-function renderOperations() {
-  const groups = [
-    ["Service Counter", [
-      ["Billing Screen", "receipt", "Open table billing."],
-      ["KOTs", "scroll-text", "Kitchen tickets."],
-      ["Live View", "radio", "Running tables."],
-      ["Due Payment", "badge-indian-rupee", "Customer dues."],
-      ["Close Shift", "badge-check", "End day summary."]
-    ]],
-    ["Menu & Floor", [
-      ["Menu", "book-open", "Items, prices and images."],
-      ["Table", "table", "Table layout."],
-      ["Customers", "users", "Guest records."],
-      ["Menu Item On Off", "toggle-left", "Item availability."],
-      ["Table Reservation", "calendar-check", "Guest bookings."]
-    ]],
-    ["Money & Reports", [
-      ["Cash Flow", "hand-coins", "Drawer status."],
-      ["Expense", "circle-dollar-sign", "Restaurant expenses."],
-      ["Discount", "badge", "Discount rules and permissions."],
-      ["Tax", "badge-percent", "GST setup."],
-      ["Reports", "chart-line", "Sales reports."]
-    ]],
-    ["System Settings", [
-      ["Bill / KOT Print", "printer", "Print rules."],
-      ["Manual Sync", "refresh-cw", "Cloud sync."],
-      ["Backup & Restore", "database-backup", "Data backup."],
-      ["Billing User Profile", "id-card", "Staff profile."],
-      ["Alerts", "bell", "Alerts."],
-      ["Service Renewal", "rotate-ccw", "Annual plan."]
-    ]]
-  ];
-  return groups.map(([title, items]) => `
-    <section class="panel ops-panel">
-      <div class="panel-header"><h3>${title}</h3></div>
-      <div class="ops-grid">${items.map(([label, iconName, text]) => `
-        <button class="ops-card" data-action="${actionKey(label)}" data-action-label="${escapeAttr(label)}">
-          ${icon(iconName)}
-          <span><strong>${label}</strong><small>${text}</small></span>
-        </button>
-      `).join("")}</div>
-    </section>
-  `).join("");
-}
-
 function renderReports() {
-  const report = reportDefinitions().find((item) => item.key === state.reportKey) || reportDefinitions()[0];
+  const date = state.reportDate || localDateKey();
+  const sales = dailyReportSales(date);
+  const totals = dailyReportTotals(sales);
+  const selectedSale = sales.find((sale) => sale.id === state.selectedReportSaleId);
   return `
-    <section class="grid report-shell">
-      <aside class="panel report-menu">
-        <div class="panel-header"><h3>Reports</h3></div>
-        ${reportDefinitions().map((item) => `<button class="${item.key === state.reportKey ? "active" : ""}" data-report="${item.key}">${item.label}</button>`).join("")}
-      </aside>
+    <section class="report-shell">
       <section class="panel report-content">
         <div class="panel-header">
-          <h3>${report.title}</h3>
+          <h3>Daily order summary</h3>
           <div class="toolbar">
-            <input class="input report-search" id="report-search" placeholder="Search report" value="${escapeAttr(state.reportSearch)}">
-            <button class="button secondary" id="print-report">${icon("printer", 16)} Print</button>
-            <button class="button secondary" id="export-report">${icon("file-spreadsheet", 16)} Export CSV</button>
+            <input class="input report-date" id="report-date" type="date" value="${escapeAttr(date)}">
+            <button class="button secondary" id="print-report-summary">${icon("printer", 16)} Print summary</button>
           </div>
         </div>
-        ${report.render()}
+        ${dailySummaryCards(totals)}
+        <div class="report-grid">
+          <div class="report-orders">
+            <div class="panel-subheader"><h4>Orders</h4><span>${sales.length} orders</span></div>
+            <input class="input report-search" id="report-search" placeholder="Search order" value="${escapeAttr(state.reportSearch)}">
+            ${renderDailyOrderList(sales)}
+          </div>
+          <div class="report-order-detail">
+            ${selectedSale ? renderDailyOrderDetail(selectedSale) : ""}
+          </div>
+        </div>
       </section>
     </section>
   `;
-}
-
-function reportDefinitions() {
-  return [
-    { key: "category", label: "Category Summary", title: "Category Report", render: renderCategoryReport },
-    { key: "item", label: "Item Summary", title: "Item Report", render: renderItemReport },
-    { key: "sales", label: "Sales Summary", title: "Sales Report", render: renderSalesReport },
-    { key: "order", label: "Order Summary", title: "Order Report", render: renderOrderReport },
-    { key: "employee", label: "Employee Summary", title: "Employee Report", render: renderEmployeeReport },
-    { key: "settlement", label: "Settlement Summary", title: "Settlement Summary", render: renderSettlementReport },
-    { key: "counter", label: "Counter Summary", title: "Counter Summary", render: renderCounterReport },
-    { key: "tip", label: "Tip Summary", title: "Tip Summary", render: renderTipReport },
-    { key: "empty", label: "Variation Summary", title: "Variation Report", render: renderNoRecord }
-  ];
 }
 
 function salesTotals() {
@@ -1251,81 +1197,110 @@ function salesTotals() {
   return { sales, subtotal, tax, discount, total, items };
 }
 
-function reportRangeLabel(name) {
-  const today = new Date().toLocaleDateString();
-  return `<div class="report-range">${name}: From ${today} to ${today}</div>`;
+function dailyReportSales(date = state.reportDate || localDateKey()) {
+  const query = state.reportSearch.trim().toLowerCase();
+  return state.data.sales
+    .filter((sale) => localDateKey(sale.createdAt) === date)
+    .filter((sale) => {
+      if (!query) return true;
+      return [sale.invoiceNo, sale.tableName, sale.customerName, sale.paymentMethod].join(" ").toLowerCase().includes(query);
+    });
 }
 
-function renderCategoryReport() {
-  const totals = salesTotals();
-  const rows = new Map();
-  totals.sales.forEach((sale) => sale.items.forEach((item) => {
-    const product = state.data.products.find((entry) => entry.id === item.id);
-    const category = product?.category || "General";
-    const row = rows.get(category) || { orders: 0, items: 0, subtotal: 0, tax: 0, total: 0 };
-    row.orders += 1;
-    row.items += item.qty;
-    row.subtotal += item.qty * item.price;
-    row.tax += item.qty * item.price * (state.data.settings.taxRate / 100);
-    row.total = row.subtotal + row.tax;
-    rows.set(category, row);
-  }));
-  return `${reportRangeLabel("Category Report")}${reportTable(["Category", "Orders", "Items", "Net Amount (₹)", "Tax (₹)", "Total Sales (₹)"], [
-    ["Total", totals.sales.length, totals.items.toFixed(2), totals.subtotal.toFixed(2), totals.tax.toFixed(2), totals.total.toFixed(2)],
-    ...[...rows.entries()].map(([category, row]) => [category, row.orders, row.items.toFixed(2), row.subtotal.toFixed(2), row.tax.toFixed(2), row.total.toFixed(2)])
-  ])}`;
+function dailyReportTotals(sales) {
+  return {
+    orders: sales.length,
+    items: sales.reduce((sum, sale) => sum + orderItemCount(sale), 0),
+    subtotal: sales.reduce((sum, sale) => sum + Number(sale.subtotal || 0), 0),
+    discount: sales.reduce((sum, sale) => sum + Number(sale.discount || 0), 0),
+    tax: sales.reduce((sum, sale) => sum + Number(sale.tax || 0), 0),
+    total: sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0),
+    cash: sales.filter((sale) => sale.paymentMethod === "Cash").reduce((sum, sale) => sum + Number(sale.total || 0), 0)
+  };
 }
 
-function renderItemReport() {
-  const totals = salesTotals();
-  const rows = state.data.products.map((product) => {
-    const sold = totals.sales.flatMap((sale) => sale.items).filter((item) => item.id === product.id);
-    const qty = sold.reduce((sum, item) => sum + item.qty, 0);
-    const total = sold.reduce((sum, item) => sum + item.qty * item.price, 0);
-    return qty ? [product.category || "General", product.name, product.sku || "-", qty.toFixed(2), total.toFixed(2)] : null;
-  }).filter(Boolean);
-  return `${reportRangeLabel("Item Report")}${reportTable(["Category", "Item", "Code", "Qty.", "Total (₹)"], [["Total", "-", "-", totals.items.toFixed(2), totals.subtotal.toFixed(2)], ...rows])}`;
+function orderItemCount(sale) {
+  return (sale.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
 }
 
-function renderSalesReport() {
-  const totals = salesTotals();
-  return `${reportRangeLabel("Sales Report")}${reportTable(["Order No.", "Date", "My Amount (₹)", "Discount (₹)", "Tax (₹)", "Total (₹)", "Biller"], [
-    ["Total", "-", totals.subtotal.toFixed(2), totals.discount.toFixed(2), totals.tax.toFixed(2), totals.total.toFixed(2), "-"],
-    ...totals.sales.map((sale) => [sale.invoiceNo, new Date(sale.createdAt).toLocaleString(), sale.subtotal.toFixed(2), sale.discount.toFixed(2), sale.tax.toFixed(2), sale.total.toFixed(2), "cashier"])
-  ])}`;
+function dailySummaryCards(totals) {
+  return `
+    <div class="grid report-summary-grid">
+      ${dashboardMetric("Total sale", money(totals.total), "indian-rupee")}
+      ${dashboardMetric("Orders", totals.orders, "receipt-text")}
+      ${dashboardMetric("Items sold", totals.items, "utensils")}
+      ${dashboardMetric("Discount", money(totals.discount), "badge")}
+    </div>
+  `;
 }
 
-function renderOrderReport() {
-  const totals = salesTotals();
-  return `${reportRangeLabel("Order Summary Report")}${reportTable(["Order Status", "My Amount (₹)", "Total (₹)", "Orders"], [
-    ["Saved", "0.00", "0.00", 0],
-    ["Printed", totals.subtotal.toFixed(2), totals.total.toFixed(2), totals.sales.length],
-    ["Cancelled", "0.00", "0.00", 0],
-    ["Total", totals.subtotal.toFixed(2), totals.total.toFixed(2), totals.sales.length]
-  ])}`;
+function renderDailyOrderList(sales) {
+  if (!sales.length) return `<div class="empty">No orders for this day</div>`;
+  return `
+    <div class="daily-order-list">
+      ${sales.map((sale) => `
+        <button class="daily-order-row ${sale.id === state.selectedReportSaleId ? "active" : ""}" data-report-sale="${sale.id}">
+          <span>
+            <strong>${sale.invoiceNo}</strong>
+            <small>${new Date(sale.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • ${sale.tableName || "No table"} • ${sale.paymentMethod}</small>
+          </span>
+          <b>${money(sale.total)}</b>
+        </button>
+      `).join("")}
+    </div>
+  `;
 }
 
-function renderEmployeeReport() {
-  const totals = salesTotals();
-  return `${reportRangeLabel("Employee Report")}${reportTable(["Billing User", "Payment Type", "Total (₹)"], [["cashier", "Cash", totals.total.toFixed(2)]])}`;
+function renderDailyOrderDetail(sale) {
+  return `
+    <div class="panel-subheader">
+      <div>
+        <h4>${sale.invoiceNo}</h4>
+        <span>${sale.tableName || "No table"} • ${sale.customerName || "Walk-in Customer"} • ${new Date(sale.createdAt).toLocaleString()}</span>
+      </div>
+      <button class="button secondary" id="print-report-order" data-sale-id="${sale.id}">${icon("printer", 16)} Print order</button>
+    </div>
+    <div class="table-scroll">
+      <table class="table report-table order-detail-table">
+        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+        <tbody>
+          ${(sale.items || []).map((item) => `<tr><td>${item.name}</td><td>${item.qty}</td><td>${money(item.price)}</td><td>${money(item.qty * item.price)}</td></tr>`).join("")}
+          <tr class="total"><td colspan="3">Subtotal</td><td>${money(sale.subtotal)}</td></tr>
+          <tr><td colspan="3">Discount</td><td>${money(sale.discount)}</td></tr>
+          <tr><td colspan="3">Tax</td><td>${money(sale.tax)}</td></tr>
+          <tr class="total"><td colspan="3">Total</td><td>${money(sale.total)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
-function renderSettlementReport() {
-  const totals = salesTotals();
-  return `${reportRangeLabel("Settlement Summary")}${reportTable(["Counter Name", "Billing User", "No of orders", "Net Sales (₹)", "Total Sales (₹)", "Cash (₹)", "Card (₹)", "Due (₹)"], [["Total", "-", totals.sales.length, totals.subtotal.toFixed(2), totals.total.toFixed(2), totals.total.toFixed(2), "0.00", "0.00"], ["c1", "cashier", totals.sales.length, totals.subtotal.toFixed(2), totals.total.toFixed(2), totals.total.toFixed(2), "0.00", "0.00"]])}`;
+function dailySummaryPrintMarkup(date, sales) {
+  const totals = dailyReportTotals(sales);
+  return `
+    <div class="receipt report-printout">
+      <h3>${state.data.settings.shopName}</h3>
+      <small>Daily order summary • ${date}</small>
+      <hr>
+      <p>Orders: ${totals.orders}<br>Items sold: ${totals.items}<br>Subtotal: ${money(totals.subtotal)}<br>Discount: ${money(totals.discount)}<br>Tax: ${money(totals.tax)}<br><strong>Total sale: ${money(totals.total)}</strong></p>
+      <hr>
+      ${sales.map((sale) => `<p>${sale.invoiceNo}<br>${sale.tableName || "No table"} • ${sale.paymentMethod} • ${orderItemCount(sale)} items<br><strong>${money(sale.total)}</strong></p>`).join("") || "<p>No orders</p>"}
+    </div>
+  `;
 }
 
-function renderCounterReport() {
-  const totals = salesTotals();
-  return `${reportRangeLabel("Counter Summary")}${reportTable(["Counter Name", "Success Orders", "Net Amount (₹)", "Total Tax (₹)", "Total Sales (₹)", "Cash (₹)", "UPI (₹)"], [["Billing Station", totals.sales.length, totals.subtotal.toFixed(2), totals.tax.toFixed(2), totals.total.toFixed(2), totals.total.toFixed(2), "0.00"]])}`;
-}
-
-function renderTipReport() {
-  return `${reportRangeLabel("Tip Summary")}${reportTable(["Employee/Table", "Amount (₹)"], [["Other", "0.00"], ...state.data.tables.map((table) => [table.name, "0.00"])])}`;
-}
-
-function renderNoRecord() {
-  return `<div class="empty report-empty">${icon("file-x", 64)}<strong>There is no record available.</strong></div>`;
+function orderDetailPrintMarkup(sale) {
+  return `
+    <div class="receipt report-printout">
+      <h3>${state.data.settings.shopName}</h3>
+      <small>Order items</small>
+      <p>Invoice: ${sale.invoiceNo}<br>Date: ${new Date(sale.createdAt).toLocaleString()}<br>Table: ${sale.tableName || "No table"}<br>Customer: ${sale.customerName || "Walk-in Customer"}</p>
+      <hr>
+      ${(sale.items || []).map((item) => `<p>${item.name}<br>${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}</p>`).join("")}
+      <hr>
+      <p>Subtotal: ${money(sale.subtotal)}<br>Discount: ${money(sale.discount)}<br>Tax: ${money(sale.tax)}<br><strong>Total: ${money(sale.total)}</strong></p>
+    </div>
+  `;
 }
 
 function reportTable(headers, rows) {
@@ -1339,40 +1314,50 @@ function renderOutletSettings() {
     ["Restaurant Setup", [
       ["Table Management", "table-2", "Add or remove tables."],
       ["Print", "printer", "Bill and KOT printing."],
-      ["Tax", "badge-percent", "GST and tax rules."],
-      ["Customer", "user-round", "Guest and credit rules."],
-      ["Billing System", "scroll-text", "Invoice and counter setup."]
+      ["Tax", "badge-percent", "GST and tax rules."]
     ]],
     ["Billing Rules", [
       ["Display", "monitor", "Billing screen layout."],
       ["Calculations", "calculator", "Service charge and rounding."],
-      ["Discount", "badge", "Discount permissions."],
-      ["Menu Item On Off", "toggle-left", "Availability control."],
-      ["Table Reservation", "calendar-check", "Reservation rules."]
+      ["Discount", "badge", "Discount permissions."]
     ]],
     ["Data & Account", [
       ["Manual Sync", "refresh-cw", "Push and pull Firebase data."],
       ["Backup & Restore", "database-backup", "Export or restore data."],
-      ["Billing User Profile", "id-card", "Cashier and owner profile."],
-      ["Alerts", "bell", "Stock and open bill alerts."],
-      ["Language Profiles", "languages", "Receipt language."]
+      ["Billing User Profile", "id-card", "Cashier and owner profile."]
     ]]
   ];
   return `
-    <section class="panel settings-panel mobile-more-panel">
-      <div class="panel-header"><h3>Mobile Shortcuts</h3></div>
-      <div class="settings-grid">
-        <button class="setting-card" data-view="products">${icon("book-open")}<span><strong>Menu setup</strong><small>Items, prices, stock and images.</small></span></button>
-        <button class="setting-card" data-view="customers">${icon("users")}<span><strong>Guests</strong><small>Customer names and visit records.</small></span></button>
-        <button class="setting-card" data-view="sales">${icon("receipt-text")}<span><strong>Orders</strong><small>Invoice history and receipt reprints.</small></span></button>
-        <button class="setting-card" data-view="subscription">${icon("badge-indian-rupee")}<span><strong>Plan</strong><small>Annual license and renewal status.</small></span></button>
+    <details class="panel settings-panel profile-dropdown">
+      <summary class="settings-dropdown-summary">
+        <span>
+          <strong>Restaurant Profile</strong>
+          <small>${state.data.settings.shopName || "Restaurant name"} • ${state.data.settings.phone || "No phone added"}</small>
+        </span>
+        ${icon("chevron-down")}
+      </summary>
+      <div class="settings-dropdown-body">
+        <div class="form-grid">
+          ${settingField("shopName", "Restaurant name")}
+          ${settingField("phone", "Phone")}
+          ${settingField("gstin", "GSTIN")}
+          ${settingField("taxRate", "Tax rate %", "number")}
+          <div class="field" style="grid-column:1/-1"><label>Address</label><textarea id="setting-address">${state.data.settings.address || ""}</textarea></div>
+        </div>
+        <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
       </div>
-      <button class="button warn mobile-signout-button" id="mobile-signout">${icon("log-out")} Sign out</button>
-    </section>
+    </details>
     <section class="panel settings-panel">
       <div class="panel-header"><h3>Billing Workflow</h3></div>
       <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
       <button class="button" id="save-billing-workflow" style="margin-top:12px">${icon("save")} Save billing workflow</button>
+    </section>
+    <section class="panel settings-panel mobile-more-panel">
+      <div class="panel-header"><h3>Mobile Shortcuts</h3></div>
+      <div class="settings-grid">
+        <button class="setting-card" data-view="customers">${icon("users")}<span><strong>Guests</strong><small>Customer names and visit records.</small></span></button>
+        <button class="setting-card" data-view="subscription">${icon("badge-indian-rupee")}<span><strong>Plan</strong><small>Annual license and renewal status.</small></span></button>
+      </div>
     </section>
     ${groups.map(([title, items]) => `
       <section class="panel settings-panel">
@@ -1383,20 +1368,9 @@ function renderOutletSettings() {
       </section>
     `).join("")}
     <section class="panel settings-panel">
-      <div class="panel-header"><h3>Restaurant Profile</h3></div>
-      <div class="form-grid">
-        ${settingField("shopName", "Restaurant name")}
-        ${settingField("phone", "Phone")}
-        ${settingField("gstin", "GSTIN")}
-        ${settingField("taxRate", "Tax rate %", "number")}
-        <div class="field" style="grid-column:1/-1"><label>Address</label><textarea id="setting-address">${state.data.settings.address || ""}</textarea></div>
-      </div>
-      <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
-    </section>
-    <section class="panel settings-panel">
       <div class="panel-header"><h3>Account Data</h3></div>
       <p class="muted">Current login ID: ${currentEmail()}</p>
-      <button class="button warn" id="reset-account-data">${icon("trash-2")} Reset this login data</button>
+      <button class="button warn" id="sign-out">${icon("log-out")} Sign out</button>
     </section>
   `;
 }
@@ -1430,6 +1404,11 @@ function renderModal() {
 }
 
 function autoPrint(markup) {
+  if (window.PondyPrinter?.printReceipt) {
+    window.PondyPrinter.printReceipt(printTextFromMarkup(markup));
+    setToast("Sent to Android printer");
+    return;
+  }
   state.printContent = markup;
   render();
   window.setTimeout(() => {
@@ -1439,6 +1418,16 @@ function autoPrint(markup) {
       render();
     }, 500);
   }, 120);
+}
+
+function printTextFromMarkup(markup = "") {
+  const holder = document.createElement("div");
+  holder.innerHTML = markup;
+  return holder.innerText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function actionKey(label = "") {
@@ -1458,10 +1447,9 @@ function renderProductModal(product = {}) {
           </div>
           ${productInput("name", "Name", product.name)}
           ${productInput("sku", "SKU", product.sku)}
-          ${productInput("category", "Category", product.category)}
+          ${productCategorySelect(product.category)}
           ${productInput("price", "Menu price", product.price, "number")}
           ${productInput("cost", "Cost", product.cost, "number")}
-          ${productInput("stock", "Stock", product.stock, "number")}
           <div class="field" style="grid-column:1/-1"><label>Menu item image</label><input class="input" id="product-image" type="file" accept="image/*"></div>
         </div>
         <button class="button" id="save-product" data-id="${product.id || ""}" style="margin-top:14px">${icon("save")} Save menu item</button>
@@ -1472,6 +1460,34 @@ function renderProductModal(product = {}) {
 
 function productInput(key, label, value = "", type = "text") {
   return `<div class="field"><label>${label}</label><input class="input" id="product-${key}" type="${type}" value="${value ?? ""}"></div>`;
+}
+
+function productCategorySelect(value = "") {
+  const defaults = ["South Indian", "Curries", "Rice Bowls", "Breads", "Beverages", "Starters", "Desserts", "Combos"];
+  const categories = [...new Set([...defaults, ...state.data.products.map((product) => product.category || "General"), value || "General"])]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  const current = value || "General";
+  return `
+    <div class="field">
+      <label>Category</label>
+      <select class="input" id="product-category">
+        ${categories.map((category) => `<option value="${escapeAttr(category)}" ${category === current ? "selected" : ""}>${escapeAttr(category)}</option>`).join("")}
+        <option value="__new__">+ New category</option>
+      </select>
+      <input class="input new-category-input" id="product-new-category" placeholder="New category name" style="display:none;margin-top:8px">
+    </div>
+  `;
+}
+
+function toggleNewCategoryInput() {
+  const select = document.querySelector("#product-category");
+  const input = document.querySelector("#product-new-category");
+  if (!select || !input) return;
+  const isNewCategory = select.value === "__new__";
+  input.style.display = isNewCategory ? "block" : "none";
+  input.required = isNewCategory;
+  if (isNewCategory) input.focus();
 }
 
 function renderCustomerModal() {
@@ -1594,19 +1610,18 @@ function actionDetails(action, label) {
     "tax": simple("Tax", configPanel("Tax rules", "Configure GST behavior used in billing totals and receipt display.", [{ key: "taxRate", label: "Tax rate %", type: "number", value: state.data.settings.taxRate }, { key: "gstMode", label: "GST mode", value: "CGST + SGST" }, { key: "taxIncluded", label: "Tax included in menu price", type: "checkbox", value: false }], ["Update Restaurant Profile with GSTIN.", "Use one tax rate for faster counter billing.", "Print a sample receipt after changing tax."])),
     "discount": simple("Discount", configPanel("Discount control", "Set discount permissions so staff can bill quickly without losing margin.", [{ key: "maxDiscount", label: "Maximum discount", type: "number", value: 0 }, { key: "managerApproval", label: "Manager approval required", type: "checkbox", value: true }, { key: "discountReasonRequired", label: "Reason required", type: "checkbox", value: true }], ["Keep max discount low for cashiers.", "Use manager approval for special guests.", "Review discounts in Sales reports."])),
     "table-reservation": simple("Table Reservation", configPanel("Reservation policy", "Set simple rules for guest reservations and table hold timing.", [{ key: "reservationWindow", label: "Reservation window minutes", type: "number", value: 60 }, { key: "reservationPhoneRequired", label: "Phone required", type: "checkbox", value: true }, { key: "reservationDeposit", label: "Deposit amount", type: "number", value: 0 }], ["Take phone number for every booking.", "Release late reservations after the hold window.", "Use notes for party size and occasion."])),
-    "menu-item-on-off": simple("Menu Item On Off", `${moduleIntro("Availability control", "Quickly mark items unavailable during service without deleting them from the menu.", ["Use this before busy hours.", "Low-stock items are highlighted by the dashboard.", "Set restock notes so staff know when an item returns."])}${configForm([{ key: "hideOutOfStock", label: "Hide out-of-stock items", type: "checkbox", value: true }, { key: "showUnavailableBadge", label: "Show unavailable badge", type: "checkbox", value: true }, { key: "restockNote", label: "Restock note", value: "Ask kitchen before billing" }])}${reportTable(["Menu item", "Stock", "Status"], state.data.products.slice(0, 8).map((product) => [product.name, product.stock, Number(product.stock) > 0 ? "Available" : "Unavailable"]))}`),
     "feedback": simple("Feedback", configPanel("Guest feedback", "Collect review links and print them on receipts when useful.", [{ key: "feedbackLink", label: "Feedback link", value: "" }, { key: "showFeedbackOnReceipt", label: "Show on receipt", type: "checkbox", value: true }, { key: "feedbackMessage", label: "Receipt message", value: "Tell us about your visit" }], ["Use a Google review link.", "Keep the message short.", "Check feedback weekly."])),
     "led-display": simple("LED Display", configPanel("Display board", "Prepare order display settings for kitchen or pickup counters.", [{ key: "displayName", label: "Display name", value: "Kitchen display" }, { key: "showToken", label: "Show token numbers", type: "checkbox", value: true }, { key: "displayTheme", label: "Display theme", value: "High contrast" }], ["Show only order numbers and statuses.", "Use high contrast for kitchen visibility.", "Pair with KOT status labels."])),
     "dual-screen": simple("Dual Screen", configPanel("Customer display", "Set the customer-facing billing display used at the counter.", [{ key: "customerDisplay", label: "Customer display enabled", type: "checkbox", value: false }, { key: "displayMessage", label: "Display message", value: "Thank you" }, { key: "showRunningTotal", label: "Show running total", type: "checkbox", value: true }], ["Show items as they are added.", "Hide manager-only controls.", "Use the PondyPOS logo screen when idle."])),
     "billing-user-profile": simple("Billing User Profile", configPanel("Staff profile", "Configure the active counter user for receipts and reports.", [{ key: "cashierName", label: "Cashier name", value: "cashier" }, { key: "role", label: "Role", value: "Owner" }, { key: "pinRequired", label: "Require PIN for manager actions", type: "checkbox", value: true }], ["Use separate Firebase login for each owner/store.", "Keep cashier names consistent.", "Protect reset and shift close actions."])),
-    "alerts": simple("Alerts", configPanel("Alert rules", "Set operational alerts that protect billing and stock health.", [{ key: "lowStockAlert", label: "Low stock alert qty", type: "number", value: 5 }, { key: "dailySummary", label: "Daily summary alert", type: "checkbox", value: true }, { key: "openBillAlertMinutes", label: "Open bill alert minutes", type: "number", value: 45 }], ["Review low stock before dinner service.", "Check long-running bills.", "Use daily summary before closing."])),
+    "alerts": simple("Alerts", configPanel("Alert rules", "Set operational alerts that protect billing flow.", [{ key: "dailySummary", label: "Daily summary alert", type: "checkbox", value: true }, { key: "openBillAlertMinutes", label: "Open bill alert minutes", type: "number", value: 45 }], ["Check long-running bills.", "Use daily summary before closing.", "Review open bills before settlement."])),
     "help": simple("Help", `${moduleIntro("Production checklist", "Use this as the owner checklist before charging customers or deploying updates.", ["Phone OTP and Google login tested.", "Each user has separate Firebase data.", "Billing, reports, backup, and shift close verified."])}${reportTable(["Topic", "What to check"], [["Login", "Firebase Phone and Google providers enabled"], ["Billing", "Select table, add item, complete billing"], ["Sync", "Firestore rules allow only tenants/{uid}"], ["Backup", "Export JSON before big menu edits"], ["Deploy", "Push GitHub and redeploy Vercel"], ["Support", "Keep WhatsApp or phone support visible to staff"]])}${moduleActions([{ label: "Open settings", view: "settings", icon: "settings" }, { label: "Open subscription", view: "subscription", icon: "badge-indian-rupee", secondary: true }])}`),
-    "display": simple("Display Settings", configPanel("Billing display", "Choose the information cashiers see while billing on PC and mobile.", [{ key: "compactTables", label: "Compact table view", type: "checkbox", value: false }, { key: "showStockOnCards", label: "Show stock on menu cards", type: "checkbox", value: true }, { key: "showDashboardHealth", label: "Show dashboard health", type: "checkbox", value: true }], ["Keep table-first billing as the default.", "Show stock during busy hours.", "Use compact mode on smaller monitors."])),
+    "display": simple("Display Settings", configPanel("Billing display", "Choose the information cashiers see while billing on PC and mobile.", [{ key: "compactTables", label: "Compact table view", type: "checkbox", value: false }, { key: "showDashboardHealth", label: "Show dashboard health", type: "checkbox", value: true }], ["Keep table-first billing as the default.", "Use compact mode on smaller monitors.", "Keep billing cards clean for staff."])),
     "calculations": simple("Calculation Settings", configPanel("Billing calculation", "Control service charge and rounding behavior used at checkout.", [{ key: "serviceCharge", label: "Service charge %", type: "number", value: 0 }, { key: "roundOff", label: "Round off bills", type: "checkbox", value: true }, { key: "roundOffMode", label: "Round off mode", value: "Nearest rupee" }], ["Print a sample bill after changes.", "Keep service charge visible to staff.", "Review totals in Sales report."])),
     "linked-services": simple("Linked Services", configPanel("Service links", "Store service connection details for WhatsApp, delivery, and online orders.", [{ key: "whatsappNumber", label: "WhatsApp number", value: "" }, { key: "deliveryPartner", label: "Delivery partner", value: "" }, { key: "onlineOrderUrl", label: "Online order URL", value: "" }], ["Use one official WhatsApp number.", "Keep partner name current.", "Test links before printing QR codes."])),
     "table-management": simple("Table Management", renderTableManagementPanel()),
     "print": simple("Print Settings", configPanel("Receipt print", "Set receipt format, GST details, and print behavior.", [{ key: "paperSize", label: "Paper size", value: "80mm" }, { key: "showGstin", label: "Show GSTIN on receipt", type: "checkbox", value: true }, { key: "saveBillAfterPrint", label: "Show save button after bill print", type: "checkbox", value: state.data.settings.saveBillAfterPrint }], ["Use browser print for receipts.", "Check margins on 80mm paper.", "Print one receipt after changing logo or GSTIN."])),
-    "customer": simple("Customer Settings", configPanel("Guest rules", "Configure how guest phone numbers and credit sales are handled.", [{ key: "phoneRequired", label: "Phone required for guests", type: "checkbox", value: false }, { key: "allowCredit", label: "Allow credit bills", type: "checkbox", value: true }, { key: "creditLimit", label: "Default credit limit", type: "number", value: 0 }], ["Capture phone for credit bills.", "Review dues from Operations.", "Avoid duplicate guest names."])),
+    "customer": simple("Customer Settings", configPanel("Guest rules", "Configure how guest phone numbers and credit sales are handled.", [{ key: "phoneRequired", label: "Phone required for guests", type: "checkbox", value: false }, { key: "allowCredit", label: "Allow credit bills", type: "checkbox", value: true }, { key: "creditLimit", label: "Default credit limit", type: "number", value: 0 }], ["Capture phone for credit bills.", "Review dues before closing.", "Avoid duplicate guest names."])),
     "online-advance-order-configuration": simple("Online / Advance Order Configuration", configPanel("Advance order rules", "Control how future orders are accepted and prepared.", [{ key: "autoAccept", label: "Auto accept orders", type: "checkbox", value: false }, { key: "advanceOrderHours", label: "Advance order hours", type: "number", value: 24 }, { key: "cancelBeforeMinutes", label: "Cancel before minutes", type: "number", value: 30 }], ["Confirm pickup or delivery time.", "Record customer phone.", "Review advance orders before rush hour."])),
     "billing-system": simple("Billing System", configPanel("Invoice system", "Set invoice identity and counter naming for reports.", [{ key: "invoicePrefix", label: "Invoice prefix", value: state.data.settings.invoicePrefix }, { key: "counterName", label: "Counter name", value: "Billing Station" }, { key: "serverMode", label: "Server mode", value: "Main Server" }], ["Keep invoice prefix short.", "Use counter names in shift reports.", "Sync after changing billing identity."])),
     "language-profiles": simple("Language Profiles", configPanel("Language profile", "Prepare labels for staff and receipt language preferences.", [{ key: "language", label: "Primary language", value: "English" }, { key: "receiptLanguage", label: "Receipt language", value: "English" }, { key: "localGreeting", label: "Receipt greeting", value: "Thank you" }], ["Keep menu item names readable.", "Use local greeting on receipt.", "Test receipt print after language changes."])),
@@ -1742,20 +1757,30 @@ function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
   });
-  document.querySelectorAll("[data-report]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.reportKey = button.dataset.report;
-      state.reportSearch = "";
-      render();
-    });
+  document.querySelector("#report-date")?.addEventListener("change", (event) => {
+    state.reportDate = event.target.value || localDateKey();
+    state.selectedReportSaleId = "";
+    render();
   });
   document.querySelector("#report-search")?.addEventListener("input", (event) => {
     state.reportSearch = event.target.value;
+    state.selectedReportSaleId = "";
     state.focusReportSearch = true;
     render();
   });
-  document.querySelector("#print-report")?.addEventListener("click", printReport);
-  document.querySelector("#export-report")?.addEventListener("click", exportReportCsv);
+  document.querySelector("#print-report-summary")?.addEventListener("click", () => {
+    autoPrint(dailySummaryPrintMarkup(state.reportDate || localDateKey(), dailyReportSales(state.reportDate || localDateKey())));
+  });
+  document.querySelectorAll("[data-report-sale]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedReportSaleId = button.dataset.reportSale;
+      render();
+    });
+  });
+  document.querySelector("#print-report-order")?.addEventListener("click", (event) => {
+    const sale = state.data.sales.find((item) => item.id === event.currentTarget.dataset.saleId);
+    if (sale) autoPrint(orderDetailPrintMarkup(sale));
+  });
   document.querySelector("#export-backup")?.addEventListener("click", exportBackup);
   document.querySelector("#export-backup-modal")?.addEventListener("click", exportBackup);
   document.querySelector("#import-backup")?.addEventListener("change", importBackup);
@@ -1857,6 +1882,7 @@ function bindEvents() {
     render();
   }));
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
+  document.querySelector("#product-category")?.addEventListener("change", toggleNewCategoryInput);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
   document.querySelector("#setting-saveBillAfterPrint")?.addEventListener("change", saveBillingWorkflow);
   document.querySelector("#save-billing-workflow")?.addEventListener("click", saveBillingWorkflow);
@@ -2160,7 +2186,7 @@ function addToCart(id, sourceElement = null) {
   state.pendingBill = null;
   captureMenuScrollAnchor(id, sourceElement);
   const product = state.data.products.find((item) => item.id === id);
-  if (!product || Number(product.stock) <= 0) return alert("This product is out of stock.");
+  if (!product) return;
   const cart = currentCart();
   const existing = cart.find((item) => item.id === id);
   if (existing) existing.qty += 1;
@@ -2349,13 +2375,8 @@ async function completeSale(sale, tableId, customer) {
   if (state.checkoutBusy) return;
   state.checkoutBusy = true;
   try {
-    const saleItems = sale.items || [];
     state.data.kots = (state.data.kots || []).map((kot) => kot.tableId === tableId ? { ...kot, status: "billed", billedAt: new Date().toISOString() } : kot);
     state.data.sales.unshift(sale);
-    state.data.products = state.data.products.map((product) => {
-      const item = saleItems.find((cartItem) => cartItem.id === product.id);
-      return item ? { ...product, stock: Math.max(0, Number(product.stock) - item.qty) } : product;
-    });
     state.data.customers = state.data.customers.map((item) => item.id === customer.id ? { ...item, visits: Number(item.visits || 0) + 1, totalSpent: Number(item.totalSpent || 0) + sale.total } : item);
     state.data.openBills[tableId] = [];
     delete state.billDrafts?.[tableId];
@@ -2387,25 +2408,35 @@ async function saveProduct() {
   const id = document.querySelector("#save-product").dataset.id || newId();
   const previous = state.data.products.find((product) => product.id === id) || {};
   const file = document.querySelector("#product-image").files[0];
+  const selectedCategory = document.querySelector("#product-category")?.value.trim() || "General";
+  const newCategory = document.querySelector("#product-new-category")?.value.trim() || "";
+  const category = selectedCategory === "__new__" ? newCategory : selectedCategory;
+  if (selectedCategory === "__new__" && !newCategory) {
+    setToast("Enter new category name", "error");
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.innerHTML = `${icon("save")} Save menu item`;
+      createIconsSafely();
+    }
+    return;
+  }
   const product = {
     id,
     name: document.querySelector("#product-name").value.trim() || "Untitled product",
     sku: document.querySelector("#product-sku").value.trim(),
-    category: document.querySelector("#product-category").value.trim() || "General",
+    category: category || "General",
     price: Number(document.querySelector("#product-price").value || 0),
     cost: Number(document.querySelector("#product-cost").value || 0),
-    stock: Number(document.querySelector("#product-stock").value || 0),
     imageUrl: previous.imageUrl || "",
     imageUpdatedAt: previous.imageUpdatedAt || ""
   };
   if (product.price < 0) {
     setToast("Menu price cannot be negative", "error");
-    if (saveButton) saveButton.disabled = false;
-    return;
-  }
-  if (product.stock < 0) {
-    setToast("Stock cannot be negative", "error");
-    if (saveButton) saveButton.disabled = false;
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.innerHTML = `${icon("save")} Save menu item`;
+      createIconsSafely();
+    }
     return;
   }
   if (file) {
@@ -2900,6 +2931,8 @@ window.addEventListener("offline", () => {
 });
 
 registerServiceWorker();
+
+render();
 
 initFirebase()
   .catch((error) => {
