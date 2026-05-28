@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260529-mobile-table-clean";
+const assetVersion = "20260529-cloud-sync-status";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -86,6 +86,7 @@ const state = {
   checkoutBusy: false,
   syncStatus: "idle",
   pendingCloudSync: readPendingSync(initialTenantId),
+  lastSyncError: "",
   toast: null,
   cloudReady: false,
   user: null,
@@ -332,9 +333,11 @@ async function persist() {
     clearPendingSync();
     state.syncStatus = "synced";
     state.lastSyncedAt = new Date().toISOString();
+    state.lastSyncError = "";
   } catch (error) {
     markPendingSync();
     state.syncStatus = navigator.onLine === false ? "offline" : "error";
+    state.lastSyncError = error?.message || error?.code || "Firebase sync failed";
     throw error;
   }
 }
@@ -1348,6 +1351,10 @@ function renderOutletSettings() {
       </div>
     </details>
     <section class="panel settings-panel">
+      <div class="panel-header"><h3>Cloud Sync</h3></div>
+      ${cloudSyncPanel()}
+    </section>
+    <section class="panel settings-panel">
       <div class="panel-header"><h3>Billing Workflow</h3></div>
       <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
       <button class="button" id="save-billing-workflow" style="margin-top:12px">${icon("save")} Save billing workflow</button>
@@ -1378,6 +1385,23 @@ function renderOutletSettings() {
       <p class="muted">Current login ID: ${currentEmail()}</p>
       <button class="button warn" id="sign-out">${icon("log-out")} Sign out</button>
     </section>
+  `;
+}
+
+function cloudSyncPanel() {
+  const rows = [
+    ["Firebase config", state.firebaseConfigured ? "Ready" : "Missing"],
+    ["Login", state.user ? currentEmail() : "Not signed in"],
+    ["Cloud", state.cloudReady ? "Connected" : "Not connected"],
+    ["Tenant path", state.user ? `tenants/${state.tenantId}` : "Local demo"],
+    ["Last sync", state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleString() : "Not synced yet"]
+  ];
+  return `
+    <div class="sync-panel">
+      ${rows.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}
+      ${state.lastSyncError ? `<p class="sync-error">${escapeHtml(state.lastSyncError)}</p>` : ""}
+      <button class="button" id="force-cloud-sync">${icon("cloud-upload")} Sync now</button>
+    </div>
   `;
 }
 
@@ -1899,6 +1923,7 @@ function bindEvents() {
   document.querySelector("#product-category")?.addEventListener("change", toggleNewCategoryInput);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
   document.querySelector("#android-printer-settings")?.addEventListener("click", openAndroidPrinterSettings);
+  document.querySelector("#force-cloud-sync")?.addEventListener("click", manualSync);
   document.querySelector("#setting-saveBillAfterPrint")?.addEventListener("change", saveBillingWorkflow);
   document.querySelector("#save-billing-workflow")?.addEventListener("click", saveBillingWorkflow);
   document.querySelector("#save-module-settings")?.addEventListener("click", saveModuleSettings);
@@ -2480,9 +2505,14 @@ async function saveProduct() {
 async function syncProductAfterSave(product, file) {
   try {
     if (file && state.user && state.storage) {
-      const cloudUrl = await uploadProductImage(product.id, file);
-      state.data.products = state.data.products.map((item) => item.id === product.id ? { ...item, imageUrl: cloudUrl, imageUpdatedAt: new Date().toISOString() } : item);
-      writeLocal();
+      try {
+        const cloudUrl = await uploadProductImage(product.id, file);
+        state.data.products = state.data.products.map((item) => item.id === product.id ? { ...item, imageUrl: cloudUrl, imageUpdatedAt: new Date().toISOString() } : item);
+        writeLocal();
+      } catch (error) {
+        console.warn("Product image Storage upload failed. Keeping compressed local image in Firestore.", error);
+        state.lastSyncError = `Storage upload failed: ${error?.message || error?.code || "check Firebase Storage rules"}`;
+      }
     }
     await persist();
   } catch (error) {
