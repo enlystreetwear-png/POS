@@ -2,21 +2,24 @@ package com.pondypos.printertest;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.SharedPreferences;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -34,19 +37,16 @@ import java.util.UUID;
 public class MainActivity extends Activity {
     private static final int PERMISSION_REQUEST = 42;
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-    private static final String DEFAULT_URL = "http://10.208.84.248:4173/?v=android-print-bridge";
+    private static final String DEFAULT_URL = "https://pos-ebon-five.vercel.app/";
 
     private Spinner printerSpinner;
-    private EditText urlInput;
     private TextView status;
     private WebView webView;
-    private SharedPreferences prefs;
     private final List<BluetoothDevice> devices = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        prefs = getSharedPreferences("pondypos", MODE_PRIVATE);
         buildUi();
         requestBluetoothPermission();
         loadPairedPrinters();
@@ -56,60 +56,40 @@ public class MainActivity extends Activity {
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(12, 12, 12, 12);
+        root.setPadding(0, 0, 0, 0);
 
-        TextView title = new TextView(this);
-        title.setText("PondyPOS Android");
-        title.setTextSize(20);
-        title.setTypeface(null, 1);
-        root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(14), dp(8), dp(12), dp(8));
+        header.setBackgroundColor(0xFFFFFFFF);
 
-        urlInput = new EditText(this);
-        urlInput.setSingleLine(true);
-        urlInput.setText(prefs.getString("url", DEFAULT_URL));
-        root.addView(urlInput, new LinearLayout.LayoutParams(-1, -2));
-
-        Button load = new Button(this);
-        load.setText("Open / update website");
-        load.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                prefs.edit().putString("url", urlInput.getText().toString().trim()).apply();
-                loadWebsite();
-            }
-        });
-        root.addView(load, new LinearLayout.LayoutParams(-1, -2));
-
-        printerSpinner = new Spinner(this);
-        root.addView(printerSpinner, new LinearLayout.LayoutParams(-1, -2));
-
-        LinearLayout printerActions = new LinearLayout(this);
-        printerActions.setOrientation(LinearLayout.HORIZONTAL);
-        Button refresh = new Button(this);
-        refresh.setText("Refresh printers");
-        refresh.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                loadPairedPrinters();
-            }
-        });
-        Button test = new Button(this);
-        test.setText("Test print");
-        test.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                printText(testReceiptText());
-            }
-        });
-        printerActions.addView(refresh, new LinearLayout.LayoutParams(0, -2, 1));
-        printerActions.addView(test, new LinearLayout.LayoutParams(0, -2, 1));
-        root.addView(printerActions, new LinearLayout.LayoutParams(-1, -2));
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.pondy_logo_black);
+        logo.setAdjustViewBounds(true);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        header.addView(logo, new LinearLayout.LayoutParams(dp(72), dp(48)));
 
         status = new TextView(this);
         status.setText("Ready");
-        status.setTextSize(13);
-        status.setPadding(0, 8, 0, 8);
-        root.addView(status, new LinearLayout.LayoutParams(-1, -2));
+        status.setTextSize(12);
+        status.setGravity(Gravity.CENTER_VERTICAL);
+        status.setPadding(dp(8), 0, dp(8), 0);
+        header.addView(status, new LinearLayout.LayoutParams(0, -1, 1));
+
+        Button settingsButton = new Button(this);
+        settingsButton.setText("Settings");
+        settingsButton.setAllCaps(false);
+        settingsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showPrinterSettings();
+            }
+        });
+        header.addView(settingsButton, new LinearLayout.LayoutParams(dp(104), dp(44)));
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(64)));
+
+        printerSpinner = new Spinner(this);
 
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
@@ -126,10 +106,71 @@ public class MainActivity extends Activity {
     }
 
     private void loadWebsite() {
-        String url = urlInput.getText().toString().trim();
-        if (!url.startsWith("http://") && !url.startsWith("https://")) url = "http://" + url;
-        status.setText("Opening " + url);
-        webView.loadUrl(url);
+        status.setText("Opening PondyPOS");
+        webView.loadUrl(DEFAULT_URL);
+    }
+
+    private void showPrinterSettings() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(18);
+        panel.setPadding(pad, dp(12), pad, 0);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.pondy_icon_black);
+        icon.setAdjustViewBounds(true);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        panel.addView(icon, new LinearLayout.LayoutParams(-1, dp(76)));
+
+        TextView helper = new TextView(this);
+        helper.setText("Select your paired Bluetooth receipt printer.");
+        helper.setTextSize(14);
+        helper.setPadding(0, dp(8), 0, dp(8));
+        panel.addView(helper, new LinearLayout.LayoutParams(-1, -2));
+
+        if (printerSpinner.getParent() instanceof ViewGroup) {
+            ((ViewGroup) printerSpinner.getParent()).removeView(printerSpinner);
+        }
+        panel.addView(printerSpinner, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0, dp(12), 0, 0);
+
+        Button refresh = new Button(this);
+        refresh.setText("Refresh");
+        refresh.setAllCaps(false);
+        refresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                loadPairedPrinters();
+            }
+        });
+        actions.addView(refresh, new LinearLayout.LayoutParams(0, -2, 1));
+
+        Button test = new Button(this);
+        test.setText("Test print");
+        test.setAllCaps(false);
+        test.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                printText(testReceiptText());
+            }
+        });
+        actions.addView(test, new LinearLayout.LayoutParams(0, -2, 1));
+        panel.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+
+        new AlertDialog.Builder(this)
+                .setTitle("PondyPOS settings")
+                .setView(panel)
+                .setPositiveButton("Done", null)
+                .setNeutralButton("Reload website", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        loadWebsite();
+                    }
+                })
+                .show();
     }
 
     private void requestBluetoothPermission() {
@@ -262,5 +303,9 @@ public class MainActivity extends Activity {
         public void printReceipt(String text) {
             printText(text);
         }
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
