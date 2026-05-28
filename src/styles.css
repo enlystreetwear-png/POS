@@ -2676,29 +2676,7 @@ textarea:focus {
   }
 
   .table-hero {
-    min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(76px, auto);
-    align-items: center;
-    padding: 10px 12px;
-    gap: 10px;
-    max-width: 100%;
-  }
-
-  .table-hero h3 {
-    margin: 2px 0 3px;
-    font-size: 20px;
-  }
-
-  .table-hero p {
-    max-width: 100%;
-    font-size: 11.5px;
-    line-height: 1.25;
-  }
-
-  .table-hero .eyebrow {
-    font-size: 10px;
-    letter-spacing: 0;
+    display: none;
   }
 
   .table-summary-grid {

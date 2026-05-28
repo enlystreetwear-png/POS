@@ -7,12 +7,16 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ArrayAdapter;
@@ -35,11 +39,13 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
     private static final int PERMISSION_REQUEST = 42;
+    private static final int FILE_CHOOSER_REQUEST = 77;
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final String DEFAULT_URL = "https://pos-ebon-five.vercel.app/";
 
     private Spinner printerSpinner;
     private WebView webView;
+    private ValueCallback<Uri[]> filePathCallback;
     private final List<BluetoothDevice> devices = new ArrayList<>();
 
     @Override
@@ -66,6 +72,25 @@ public class MainActivity extends Activity {
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         if (Build.VERSION.SDK_INT >= 21) settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         webView.setWebViewClient(new WebViewClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                if (MainActivity.this.filePathCallback != null) {
+                    MainActivity.this.filePathCallback.onReceiveValue(null);
+                }
+                MainActivity.this.filePathCallback = filePathCallback;
+                Intent intent = fileChooserParams.createIntent();
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                try {
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                } catch (Exception error) {
+                    MainActivity.this.filePathCallback = null;
+                    showStatus("Could not open image picker.");
+                    return false;
+                }
+                return true;
+            }
+        });
         webView.addJavascriptInterface(new PrintBridge(), "PondyPrinter");
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
 
@@ -74,6 +99,27 @@ public class MainActivity extends Activity {
 
     private void loadWebsite() {
         webView.loadUrl(DEFAULT_URL);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != FILE_CHOOSER_REQUEST || filePathCallback == null) return;
+
+        Uri[] results = null;
+        if (resultCode == RESULT_OK && data != null) {
+            if (data.getClipData() != null) {
+                int count = data.getClipData().getItemCount();
+                results = new Uri[count];
+                for (int index = 0; index < count; index++) {
+                    results[index] = data.getClipData().getItemAt(index).getUri();
+                }
+            } else if (data.getData() != null) {
+                results = new Uri[]{data.getData()};
+            }
+        }
+        filePathCallback.onReceiveValue(results);
+        filePathCallback = null;
     }
 
     private void showPrinterSettings() {
