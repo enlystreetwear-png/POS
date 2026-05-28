@@ -10,8 +10,6 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -23,6 +21,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +39,6 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_URL = "https://pos-ebon-five.vercel.app/";
 
     private Spinner printerSpinner;
-    private TextView status;
     private WebView webView;
     private final List<BluetoothDevice> devices = new ArrayList<>();
 
@@ -57,37 +55,6 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(0, 0, 0, 0);
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(14), dp(8), dp(12), dp(8));
-        header.setBackgroundColor(0xFFFFFFFF);
-
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.pondy_logo_black);
-        logo.setAdjustViewBounds(true);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        header.addView(logo, new LinearLayout.LayoutParams(dp(72), dp(48)));
-
-        status = new TextView(this);
-        status.setText("Ready");
-        status.setTextSize(12);
-        status.setGravity(Gravity.CENTER_VERTICAL);
-        status.setPadding(dp(8), 0, dp(8), 0);
-        header.addView(status, new LinearLayout.LayoutParams(0, -1, 1));
-
-        Button settingsButton = new Button(this);
-        settingsButton.setText("Settings");
-        settingsButton.setAllCaps(false);
-        settingsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                showPrinterSettings();
-            }
-        });
-        header.addView(settingsButton, new LinearLayout.LayoutParams(dp(104), dp(44)));
-        root.addView(header, new LinearLayout.LayoutParams(-1, dp(64)));
 
         printerSpinner = new Spinner(this);
 
@@ -106,7 +73,6 @@ public class MainActivity extends Activity {
     }
 
     private void loadWebsite() {
-        status.setText("Opening PondyPOS");
         webView.loadUrl(DEFAULT_URL);
     }
 
@@ -140,9 +106,9 @@ public class MainActivity extends Activity {
         Button refresh = new Button(this);
         refresh.setText("Refresh");
         refresh.setAllCaps(false);
-        refresh.setOnClickListener(new View.OnClickListener() {
+        refresh.setOnClickListener(new android.view.View.OnClickListener() {
             @Override
-            public void onClick(View view) {
+            public void onClick(android.view.View view) {
                 loadPairedPrinters();
             }
         });
@@ -151,9 +117,9 @@ public class MainActivity extends Activity {
         Button test = new Button(this);
         test.setText("Test print");
         test.setAllCaps(false);
-        test.setOnClickListener(new View.OnClickListener() {
+        test.setOnClickListener(new android.view.View.OnClickListener() {
             @Override
-            public void onClick(View view) {
+            public void onClick(android.view.View view) {
                 printText(testReceiptText());
             }
         });
@@ -185,17 +151,17 @@ public class MainActivity extends Activity {
 
     private void loadPairedPrinters() {
         if (!hasBluetoothPermission()) {
-            status.setText("Allow Bluetooth permission, then tap refresh printers.");
+            showStatus("Allow Bluetooth permission, then tap refresh printers.");
             requestBluetoothPermission();
             return;
         }
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null) {
-            status.setText("This phone does not support Bluetooth.");
+            showStatus("This phone does not support Bluetooth.");
             return;
         }
         if (!adapter.isEnabled()) {
-            status.setText("Turn on Bluetooth first.");
+            showStatus("Turn on Bluetooth first.");
             return;
         }
 
@@ -208,7 +174,7 @@ public class MainActivity extends Activity {
         }
         if (labels.isEmpty()) labels.add("No paired Bluetooth printers found");
         printerSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
-        status.setText(devices.isEmpty() ? "Pair printer in Android Bluetooth settings first." : "Printer ready. Select it before billing.");
+        showStatus(devices.isEmpty() ? "Pair printer in Android Bluetooth settings first." : "Printer ready. Select it before billing.");
     }
 
     private BluetoothDevice selectedDevice() {
@@ -227,7 +193,7 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    status.setText("No paired printer selected.");
+                    showStatus("No paired printer selected.");
                 }
             });
             return;
@@ -235,7 +201,7 @@ public class MainActivity extends Activity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                status.setText("Printing to " + device.getName() + "...");
+                showStatus("Printing to " + device.getName() + "...");
             }
         });
         new Thread(new Runnable() {
@@ -251,7 +217,7 @@ public class MainActivity extends Activity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            status.setText("Printed from PondyPOS.");
+                            showStatus("Printed from PondyPOS.");
                         }
                     });
                 } catch (Exception error) {
@@ -259,7 +225,7 @@ public class MainActivity extends Activity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            status.setText("Print failed: " + message);
+                            showStatus("Print failed: " + message);
                         }
                     });
                 } finally {
@@ -303,9 +269,23 @@ public class MainActivity extends Activity {
         public void printReceipt(String text) {
             printText(text);
         }
+
+        @JavascriptInterface
+        public void openSettings() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    showPrinterSettings();
+                }
+            });
+        }
     }
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void showStatus(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 }

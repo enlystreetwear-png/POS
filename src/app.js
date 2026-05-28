@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260528-android-print-bridge";
+const assetVersion = "20260529-web-printer-settings";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -1352,6 +1352,12 @@ function renderOutletSettings() {
       <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
       <button class="button" id="save-billing-workflow" style="margin-top:12px">${icon("save")} Save billing workflow</button>
     </section>
+    <section class="panel settings-panel">
+      <div class="panel-header"><h3>Printer</h3></div>
+      <div class="settings-grid">
+        <button class="setting-card" id="android-printer-settings">${icon("printer")}<span><strong>Android Printer</strong><small>Select Bluetooth receipt printer.</small></span></button>
+      </div>
+    </section>
     <section class="panel settings-panel mobile-more-panel">
       <div class="panel-header"><h3>Mobile Shortcuts</h3></div>
       <div class="settings-grid">
@@ -1418,6 +1424,14 @@ function autoPrint(markup) {
       render();
     }, 500);
   }, 120);
+}
+
+function openAndroidPrinterSettings() {
+  if (window.PondyPrinter?.openSettings) {
+    window.PondyPrinter.openSettings();
+    return;
+  }
+  setToast("Open PondyPOS Android app to select Bluetooth printer.", "error");
 }
 
 function printTextFromMarkup(markup = "") {
@@ -1884,6 +1898,7 @@ function bindEvents() {
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
   document.querySelector("#product-category")?.addEventListener("change", toggleNewCategoryInput);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
+  document.querySelector("#android-printer-settings")?.addEventListener("click", openAndroidPrinterSettings);
   document.querySelector("#setting-saveBillAfterPrint")?.addEventListener("change", saveBillingWorkflow);
   document.querySelector("#save-billing-workflow")?.addEventListener("click", saveBillingWorkflow);
   document.querySelector("#save-module-settings")?.addEventListener("click", saveModuleSettings);
