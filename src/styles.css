@@ -2676,12 +2676,36 @@ textarea:focus {
   }
 
   .table-hero {
-    display: none;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    max-width: 100%;
   }
 
   .table-summary-grid {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .table-hero h3 {
+    margin: 2px 0 3px;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .table-hero p {
+    max-width: 100%;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .table-hero .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0;
   }
 
   .table-summary {
