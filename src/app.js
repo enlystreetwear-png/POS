@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260529-cloud-sync-status";
+const assetVersion = "20260529-live-cloud-sync";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -87,6 +87,7 @@ const state = {
   syncStatus: "idle",
   pendingCloudSync: readPendingSync(initialTenantId),
   lastSyncError: "",
+  cloudUnsubscribe: null,
   toast: null,
   cloudReady: false,
   user: null,
@@ -259,6 +260,7 @@ async function initFirebase() {
       state.authError = friendlyAuthError(error);
     }
     authMod.onAuthStateChanged(state.auth, async (user) => {
+      stopCloudListener();
       state.user = user;
       state.tenantId = user?.uid || "demo";
       state.data = readLocal(state.tenantId);
@@ -272,6 +274,7 @@ async function initFirebase() {
         try {
           await pullCloudData();
           await syncPendingIfOnline({ silent: true });
+          startCloudListener();
           render();
         } catch (error) {
           console.warn("Cloud sync failed", error);
@@ -310,6 +313,37 @@ async function pullCloudData() {
     await setDoc(ref, state.data);
     clearPendingSync();
   }
+}
+
+function startCloudListener() {
+  if (!state.user || !state.db || state.cloudUnsubscribe) return;
+  const { doc, onSnapshot } = state.firebase.fireMod;
+  const ref = doc(state.db, "tenants", state.tenantId);
+  state.cloudUnsubscribe = onSnapshot(ref, (snap) => {
+    if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+    if (state.pendingCloudSync || readPendingSync(state.tenantId)) return;
+    state.data = normalizeData({ ...cloneData(seed), ...snap.data() });
+    writeLocal();
+    state.syncStatus = "synced";
+    state.lastSyncedAt = new Date().toISOString();
+    state.lastSyncError = "";
+    render();
+  }, (error) => {
+    console.warn("Live cloud sync failed", error);
+    state.syncStatus = "error";
+    state.lastSyncError = error?.message || error?.code || "Live Firebase sync failed";
+    render();
+  });
+}
+
+function stopCloudListener() {
+  if (!state.cloudUnsubscribe) return;
+  try {
+    state.cloudUnsubscribe();
+  } catch (error) {
+    console.warn("Could not stop cloud listener", error);
+  }
+  state.cloudUnsubscribe = null;
 }
 
 async function persist() {
@@ -1955,6 +1989,7 @@ function bindEvents() {
 }
 
 async function signOutCurrentUser() {
+  stopCloudListener();
   if (state.user) await state.auth.signOut();
   state.localSession = null;
   state.otpSent = false;
@@ -2866,6 +2901,7 @@ async function googleSignIn() {
 }
 
 async function finishSignedInUser(user) {
+  stopCloudListener();
   state.user = user;
   state.tenantId = user?.uid || "demo";
   rememberSignedInUser(user);
@@ -2875,6 +2911,8 @@ async function finishSignedInUser(user) {
   render();
   try {
     await pullCloudData();
+    await syncPendingIfOnline({ silent: true });
+    startCloudListener();
     render();
   } catch (error) {
     console.warn("Cloud sync failed", error);
@@ -2967,6 +3005,21 @@ window.addEventListener("online", () => {
   syncPendingIfOnline().then((synced) => {
     if (!synced) render();
   });
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !state.user || !state.db) return;
+  pullCloudData()
+    .then(() => {
+      if (!state.cloudUnsubscribe) startCloudListener();
+      render();
+    })
+    .catch((error) => {
+      console.warn("Cloud refresh failed", error);
+      state.syncStatus = "error";
+      state.lastSyncError = error?.message || error?.code || "Cloud refresh failed";
+      render();
+    });
 });
 
 window.addEventListener("offline", () => {
