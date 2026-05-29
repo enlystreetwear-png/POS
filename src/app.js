@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260529-quiet-sync-scroll";
+const assetVersion = "20260529-queued-sync-scroll";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -92,6 +92,7 @@ const state = {
   lastRemoteRevision: 0,
   lastRemoteDeviceId: "",
   cloudUnsubscribe: null,
+  cloudSaveChain: Promise.resolve(),
   toast: null,
   cloudReady: false,
   user: null,
@@ -112,6 +113,7 @@ const state = {
   categoryDragSuppressUntil: 0,
   mobileCartOpen: false,
   restoreMainScroll: null,
+  restoreWindowScroll: null,
   restoreProductAnchor: null,
   modal: null,
   authError: "",
@@ -400,9 +402,9 @@ async function persist() {
     state.syncStatus = "offline";
     return;
   }
-  const { doc, setDoc } = state.firebase.fireMod;
   state.syncStatus = "syncing";
-  try {
+  const saveWork = async () => {
+    const { doc, setDoc } = state.firebase.fireMod;
     const payload = cloudPayload();
     writeLocal();
     await setDoc(doc(state.db, "tenants", state.tenantId), payload);
@@ -412,12 +414,17 @@ async function persist() {
     state.lastRemoteRevision = Number(state.data.syncRevision || state.lastRemoteRevision || 0);
     state.lastRemoteDeviceId = deviceId;
     state.lastSyncError = "";
-  } catch (error) {
-    markPendingSync();
-    state.syncStatus = navigator.onLine === false ? "offline" : "error";
-    state.lastSyncError = error?.message || error?.code || "Firebase sync failed";
-    throw error;
-  }
+  };
+  state.cloudSaveChain = (state.cloudSaveChain || Promise.resolve())
+    .catch(() => {})
+    .then(saveWork)
+    .catch((error) => {
+      markPendingSync();
+      state.syncStatus = navigator.onLine === false ? "offline" : "error";
+      state.lastSyncError = error?.message || error?.code || "Firebase sync failed";
+      throw error;
+    });
+  return state.cloudSaveChain;
 }
 
 async function persistSafely(successMessage, errorMessage = "Saved locally. Cloud sync failed.") {
@@ -559,17 +566,21 @@ function render() {
     search?.setSelectionRange(search.value.length, search.value.length);
     state.focusReportSearch = false;
   }
-  if (typeof state.restoreMainScroll === "number") {
+  if (typeof state.restoreMainScroll === "number" || typeof state.restoreWindowScroll === "number") {
     const scrollTop = state.restoreMainScroll;
+    const windowScrollTop = state.restoreWindowScroll;
     const anchor = state.restoreProductAnchor;
     const applyScroll = () => {
       const main = document.querySelector(".main");
-      if (!main) return;
-      main.scrollTop = scrollTop;
-      if (!anchor) return;
-      const anchoredButton = [...document.querySelectorAll("[data-add]")].find((button) => button.dataset.add === anchor.id);
-      const anchoredCard = anchoredButton?.closest(".product-card");
-      if (anchoredCard) main.scrollTop += anchoredCard.getBoundingClientRect().top - anchor.top;
+      if (main && typeof scrollTop === "number") {
+        main.scrollTop = scrollTop;
+        if (anchor) {
+          const anchoredButton = [...document.querySelectorAll("[data-add]")].find((button) => button.dataset.add === anchor.id);
+          const anchoredCard = anchoredButton?.closest(".product-card");
+          if (anchoredCard) main.scrollTop += anchoredCard.getBoundingClientRect().top - anchor.top;
+        }
+      }
+      if (typeof windowScrollTop === "number") window.scrollTo(0, windowScrollTop);
     };
     applyScroll();
     requestAnimationFrame(() => {
@@ -577,6 +588,7 @@ function render() {
       requestAnimationFrame(applyScroll);
     });
     state.restoreMainScroll = null;
+    state.restoreWindowScroll = null;
     state.restoreProductAnchor = null;
   }
 }
@@ -584,6 +596,7 @@ function render() {
 function renderKeepingScroll() {
   const main = document.querySelector(".main");
   state.restoreMainScroll = main?.scrollTop ?? 0;
+  state.restoreWindowScroll = window.scrollY || document.documentElement.scrollTop || 0;
   state.restoreProductAnchor = null;
   render();
 }
@@ -2305,6 +2318,7 @@ function updateSummaryOnly() {
 function captureMenuScrollAnchor(productId, sourceElement) {
   const main = document.querySelector(".main");
   state.restoreMainScroll = main?.scrollTop ?? 0;
+  state.restoreWindowScroll = window.scrollY || document.documentElement.scrollTop || 0;
   const card = sourceElement?.closest?.(".product-card")
     || [...document.querySelectorAll("[data-add]")].find((button) => button.dataset.add === productId)?.closest(".product-card");
   state.restoreProductAnchor = card ? { id: productId, top: card.getBoundingClientRect().top } : null;
