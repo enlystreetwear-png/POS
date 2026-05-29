@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_URL = "https://pos-ebon-five.vercel.app/";
     private static final int PRINT_CHUNK_BYTES = 32;
     private static final int PRINT_CHUNK_DELAY_MS = 45;
-    private static final int LONG_RECEIPT_LOGO_LIMIT = 900;
+    private static final int LONG_RECEIPT_LOGO_LIMIT = 4000;
 
     private Spinner printerSpinner;
     private WebView webView;
@@ -398,8 +398,9 @@ public class MainActivity extends Activity {
             Bitmap original = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
             if (original == null) return new byte[0];
 
-            int maxWidth = 160;
-            float ratio = Math.min(1f, (float) maxWidth / (float) original.getWidth());
+            int maxWidth = 96;
+            int maxHeight = 64;
+            float ratio = Math.min(1f, Math.min((float) maxWidth / (float) original.getWidth(), (float) maxHeight / (float) original.getHeight()));
             int width = Math.max(1, Math.round(original.getWidth() * ratio));
             int height = Math.max(1, Math.round(original.getHeight() * ratio));
             Bitmap bitmap = Bitmap.createScaledBitmap(original, width, height, true);
