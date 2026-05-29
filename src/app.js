@@ -1560,7 +1560,13 @@ function renderModal() {
 
 function autoPrint(markup) {
   if (window.PondyPrinter?.printReceipt) {
-    window.PondyPrinter.printReceipt(printTextFromMarkup(markup));
+    const printText = printTextFromMarkup(markup);
+    const printLogo = printLogoFromMarkup(markup);
+    if (printLogo && window.PondyPrinter.printReceiptWithLogo) {
+      window.PondyPrinter.printReceiptWithLogo(printText, printLogo);
+    } else {
+      window.PondyPrinter.printReceipt(printText);
+    }
     setToast("Sent to Android printer");
     return;
   }
@@ -1593,6 +1599,13 @@ function printTextFromMarkup(markup = "") {
     .map((line) => line.trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function printLogoFromMarkup(markup = "") {
+  const holder = document.createElement("div");
+  holder.innerHTML = markup;
+  const src = holder.querySelector(".receipt-logo")?.getAttribute("src") || "";
+  return src.startsWith("data:image/") ? src : "";
 }
 
 function actionKey(label = "") {

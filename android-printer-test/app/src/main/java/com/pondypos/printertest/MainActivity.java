@@ -9,9 +9,12 @@ import android.bluetooth.BluetoothSocket;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Base64;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -27,6 +30,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -230,6 +234,10 @@ public class MainActivity extends Activity {
     }
 
     private void printText(final String text) {
+        printReceiptPayload(text, "");
+    }
+
+    private void printReceiptPayload(final String text, final String logoDataUrl) {
         if (!hasBluetoothPermission()) {
             requestBluetoothPermission();
             return;
@@ -258,7 +266,7 @@ public class MainActivity extends Activity {
                     socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
                     socket.connect();
                     OutputStream output = socket.getOutputStream();
-                    output.write(escposBytes(text));
+                    output.write(escposBytes(text, logoDataUrl));
                     output.flush();
                     runOnUiThread(new Runnable() {
                         @Override
@@ -286,16 +294,74 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private byte[] escposBytes(String text) {
+    private byte[] escposBytes(String text, String logoDataUrl) {
         String normalized = "\n" + text + "\n\n\n";
         byte[] body = normalized.getBytes(StandardCharsets.UTF_8);
         byte[] init = new byte[]{0x1B, 0x40};
+        byte[] alignCenter = new byte[]{0x1B, 0x61, 0x01};
+        byte[] alignLeft = new byte[]{0x1B, 0x61, 0x00};
+        byte[] logo = logoEscposBytes(logoDataUrl);
         byte[] cut = new byte[]{0x1D, 0x56, 0x42, 0x00};
-        byte[] all = new byte[init.length + body.length + cut.length];
-        System.arraycopy(init, 0, all, 0, init.length);
-        System.arraycopy(body, 0, all, init.length, body.length);
-        System.arraycopy(cut, 0, all, init.length + body.length, cut.length);
-        return all;
+        ByteArrayOutputStream all = new ByteArrayOutputStream();
+        try {
+            all.write(init);
+            if (logo.length > 0) {
+                all.write(alignCenter);
+                all.write(logo);
+                all.write(new byte[]{0x0A, 0x0A});
+                all.write(alignLeft);
+            }
+            all.write(body);
+            all.write(cut);
+        } catch (Exception ignored) {
+        }
+        return all.toByteArray();
+    }
+
+    private byte[] logoEscposBytes(String logoDataUrl) {
+        if (logoDataUrl == null || !logoDataUrl.startsWith("data:image/") || !logoDataUrl.contains(",")) {
+            return new byte[0];
+        }
+        try {
+            String base64 = logoDataUrl.substring(logoDataUrl.indexOf(",") + 1);
+            byte[] imageBytes = Base64.decode(base64, Base64.DEFAULT);
+            Bitmap original = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+            if (original == null) return new byte[0];
+
+            int maxWidth = 384;
+            float ratio = Math.min(1f, (float) maxWidth / (float) original.getWidth());
+            int width = Math.max(1, Math.round(original.getWidth() * ratio));
+            int height = Math.max(1, Math.round(original.getHeight() * ratio));
+            Bitmap bitmap = Bitmap.createScaledBitmap(original, width, height, true);
+            int bytesPerRow = (width + 7) / 8;
+            byte[] imageData = new byte[bytesPerRow * height];
+
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int pixel = bitmap.getPixel(x, y);
+                    int red = (pixel >> 16) & 0xff;
+                    int green = (pixel >> 8) & 0xff;
+                    int blue = pixel & 0xff;
+                    int alpha = (pixel >> 24) & 0xff;
+                    int luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+                    if (alpha > 40 && luminance < 180) {
+                        int index = y * bytesPerRow + x / 8;
+                        imageData[index] |= (byte) (0x80 >> (x % 8));
+                    }
+                }
+            }
+
+            ByteArrayOutputStream command = new ByteArrayOutputStream();
+            command.write(new byte[]{
+                    0x1D, 0x76, 0x30, 0x00,
+                    (byte) (bytesPerRow & 0xff), (byte) ((bytesPerRow >> 8) & 0xff),
+                    (byte) (height & 0xff), (byte) ((height >> 8) & 0xff)
+            });
+            command.write(imageData);
+            return command.toByteArray();
+        } catch (Exception error) {
+            return new byte[0];
+        }
     }
 
     private String testReceiptText() {
@@ -314,6 +380,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void printReceipt(String text) {
             printText(text);
+        }
+
+        @JavascriptInterface
+        public void printReceiptWithLogo(String text, String logoDataUrl) {
+            printReceiptPayload(text, logoDataUrl);
         }
 
         @JavascriptInterface
