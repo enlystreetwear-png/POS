@@ -1457,8 +1457,8 @@ textarea:focus {
 .receipt-logo {
   display: block;
   width: auto;
-  max-width: 92px;
-  max-height: 72px;
+  max-width: 64px;
+  max-height: 46px;
   object-fit: contain;
   margin: 0 auto 8px;
 }

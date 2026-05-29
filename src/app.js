@@ -1560,13 +1560,7 @@ function renderModal() {
 
 function autoPrint(markup) {
   if (window.PondyPrinter?.printReceipt) {
-    const printText = printTextFromMarkup(markup);
-    const printLogo = printLogoFromMarkup(markup);
-    if (printLogo && window.PondyPrinter.printReceiptWithLogo) {
-      window.PondyPrinter.printReceiptWithLogo(printText, printLogo);
-    } else {
-      window.PondyPrinter.printReceipt(printText);
-    }
+    window.PondyPrinter.printReceipt(printTextFromMarkup(markup));
     setToast("Sent to Android printer");
     return;
   }
@@ -1599,13 +1593,6 @@ function printTextFromMarkup(markup = "") {
     .map((line) => line.trim())
     .filter(Boolean)
     .join("\n");
-}
-
-function printLogoFromMarkup(markup = "") {
-  const holder = document.createElement("div");
-  holder.innerHTML = markup;
-  const src = holder.querySelector(".receipt-logo")?.getAttribute("src") || "";
-  return src.startsWith("data:image/") ? src : "";
 }
 
 function actionKey(label = "") {
@@ -1971,6 +1958,12 @@ function printLine(label, value, width = 32) {
   return `${left}${" ".repeat(spaces)}${right}`;
 }
 
+function centerPrintLine(value, width = 32) {
+  const text = cleanPrintText(value).slice(0, width);
+  const spaces = Math.max(0, Math.floor((width - text.length) / 2));
+  return `${" ".repeat(spaces)}${text}`;
+}
+
 function formatReceiptText(sale, settings = state.data.settings) {
   const line = "-".repeat(32);
   const items = (sale.items || []).flatMap((item) => [
@@ -1978,9 +1971,10 @@ function formatReceiptText(sale, settings = state.data.settings) {
     printLine(`${Number(item.qty || 0)} x ${plainMoney(item.price)}`, plainMoney(item.qty * item.price))
   ]);
   return [
-    cleanPrintText(settings.shopName || "PondyPOS Restaurant").toUpperCase(),
+    centerPrintLine(settings.shopName || "PondyPOS Restaurant"),
+    centerPrintLine(settings.phone || ""),
     cleanPrintText(settings.address || ""),
-    cleanPrintText([settings.phone, settings.gstin ? `GSTIN: ${settings.gstin}` : ""].filter(Boolean).join("  ")),
+    cleanPrintText(settings.gstin ? `GSTIN: ${settings.gstin}` : ""),
     line,
     `Invoice: ${cleanPrintText(sale.invoiceNo)}`,
     `Date: ${new Date(sale.createdAt).toLocaleString()}`,
