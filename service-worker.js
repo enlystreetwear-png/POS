@@ -1,4 +1,4 @@
-const CACHE_NAME = "pondypos-offline-20260529-queued-sync-scroll";
+const CACHE_NAME = "pondypos-offline-20260529-print-stable";
 const APP_SHELL = [
   "/",
   "/index.html",
