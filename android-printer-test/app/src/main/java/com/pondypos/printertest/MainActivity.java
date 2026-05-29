@@ -404,27 +404,34 @@ public class MainActivity extends Activity {
             int width = Math.max(1, Math.round(original.getWidth() * ratio));
             int height = Math.max(1, Math.round(original.getHeight() * ratio));
             Bitmap bitmap = Bitmap.createScaledBitmap(original, width, height, true);
+            int bytesPerRow = (width + 7) / 8;
             ByteArrayOutputStream command = new ByteArrayOutputStream();
+            command.write(new byte[]{
+                    0x1D, 0x76, 0x30, 0x00,
+                    (byte) (bytesPerRow & 0xff),
+                    (byte) ((bytesPerRow >> 8) & 0xff),
+                    (byte) (height & 0xff),
+                    (byte) ((height >> 8) & 0xff)
+            });
 
-            for (int y = 0; y < height; y += 8) {
-                int sliceHeight = Math.min(8, height - y);
-                command.write(new byte[]{0x1B, 0x2A, 0x00, (byte) (width & 0xff), (byte) ((width >> 8) & 0xff)});
-                for (int x = 0; x < width; x++) {
-                    int column = 0;
-                    for (int bit = 0; bit < sliceHeight; bit++) {
-                        int pixel = bitmap.getPixel(x, y + bit);
+            for (int y = 0; y < height; y++) {
+                for (int byteX = 0; byteX < bytesPerRow; byteX++) {
+                    int rowByte = 0;
+                    for (int bit = 0; bit < 8; bit++) {
+                        int x = (byteX * 8) + bit;
+                        if (x >= width) continue;
+                        int pixel = bitmap.getPixel(x, y);
                         int red = (pixel >> 16) & 0xff;
                         int green = (pixel >> 8) & 0xff;
                         int blue = pixel & 0xff;
                         int alpha = (pixel >> 24) & 0xff;
                         int luminance = (red * 299 + green * 587 + blue * 114) / 1000;
                         if (alpha > 40 && luminance < 190) {
-                            column |= (0x80 >> bit);
+                            rowByte |= (0x80 >> bit);
                         }
                     }
-                    command.write(column);
+                    command.write(rowByte);
                 }
-                command.write(0x0A);
             }
             return command.toByteArray();
         } catch (Exception error) {
