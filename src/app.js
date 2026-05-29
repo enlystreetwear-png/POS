@@ -2543,7 +2543,7 @@ function addToCart(id, sourceElement = null) {
   const existing = cart.find((item) => item.id === id);
   if (existing) existing.qty += 1;
   else cart.push({ id: product.id, name: product.name, price: Number(product.price), qty: 1 });
-  persistInBackground("Item saved locally. Cloud sync pending.", { showToast: false, renderOnError: false });
+  persistInBackground("Item saved locally. Cloud sync pending.", { showToast: false, renderOnError: false, renderOnSuccess: false });
   refreshCartUi(id);
 }
 
@@ -2557,7 +2557,7 @@ function changeQty(id, amount, sourceElement = null) {
   const tableId = state.selectedTableId;
   setCurrentCart(nextCart);
   syncActiveKotsWithTable(tableId, nextCart);
-  persistInBackground("Quantity saved locally. Cloud sync pending.", { showToast: false, renderOnError: false });
+  persistInBackground("Quantity saved locally. Cloud sync pending.", { showToast: false, renderOnError: false, renderOnSuccess: false });
   refreshCartUi(id);
 }
 
