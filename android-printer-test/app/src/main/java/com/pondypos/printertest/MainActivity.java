@@ -48,8 +48,8 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 77;
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final String DEFAULT_URL = "https://pos-ebon-five.vercel.app/";
-    private static final int PRINT_CHUNK_BYTES = 16;
-    private static final int PRINT_CHUNK_DELAY_MS = 90;
+    private static final int PRINT_CHUNK_BYTES = 32;
+    private static final int PRINT_CHUNK_DELAY_MS = 45;
     private static final int LONG_RECEIPT_LOGO_LIMIT = 900;
 
     private Spinner printerSpinner;
@@ -274,7 +274,7 @@ public class MainActivity extends Activity {
                     byte[] payload = escposBytes(text, logoDataUrl);
                     bytesSent = writeInChunks(output, payload);
                     output.flush();
-                    Thread.sleep(3000);
+                    Thread.sleep(1800);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
