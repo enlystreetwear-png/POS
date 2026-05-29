@@ -1,4 +1,4 @@
-const CACHE_NAME = "pondypos-offline-20260528-android-print-bridge";
+const CACHE_NAME = "pondypos-offline-20260529-reliable-sync";
 const APP_SHELL = [
   "/",
   "/index.html",

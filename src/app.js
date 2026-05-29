@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260529-live-cloud-sync";
+const assetVersion = "20260529-reliable-sync";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -11,6 +11,7 @@ const markDarkUrl = `/public/pondy-mark-dark-app.png?v=${assetVersion}`;
 const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
 const pendingSyncPrefix = "pondypos-pending-sync";
+const deviceIdKey = "pondypos-device-id";
 
 function newId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -70,6 +71,7 @@ const seed = {
 
 const initialSession = readLocalSession();
 const initialTenantId = initialSession?.firebaseUid || "demo";
+const deviceId = getDeviceId();
 
 const state = {
   view: "pos",
@@ -87,6 +89,8 @@ const state = {
   syncStatus: "idle",
   pendingCloudSync: readPendingSync(initialTenantId),
   lastSyncError: "",
+  lastRemoteRevision: 0,
+  lastRemoteDeviceId: "",
   cloudUnsubscribe: null,
   toast: null,
   cloudReady: false,
@@ -128,6 +132,14 @@ function pendingSyncKey(tenantId = state?.tenantId || "demo") {
 
 function readPendingSync(tenantId = state?.tenantId || "demo") {
   return localStorage.getItem(pendingSyncKey(tenantId)) === "true";
+}
+
+function getDeviceId() {
+  const saved = localStorage.getItem(deviceIdKey);
+  if (saved) return saved;
+  const next = newId();
+  localStorage.setItem(deviceIdKey, next);
+  return next;
 }
 
 function markPendingSync() {
@@ -305,14 +317,45 @@ async function pullCloudData() {
   const snap = await getDoc(ref);
   if (snap.exists()) {
     if (!state.pendingCloudSync) {
-      state.data = normalizeData({ ...cloneData(seed), ...snap.data() });
+      const remoteData = snap.data();
+      applyCloudData(remoteData, { showToast: false });
       writeLocal();
     }
   } else {
     state.data = readLocal(state.tenantId);
-    await setDoc(ref, state.data);
+    const payload = cloudPayload();
+    writeLocal();
+    await setDoc(ref, payload);
     clearPendingSync();
+    state.syncStatus = "synced";
+    state.lastSyncedAt = new Date().toISOString();
+    state.lastRemoteRevision = Number(state.data.syncRevision || 0);
+    state.lastRemoteDeviceId = deviceId;
   }
+}
+
+function applyCloudData(remoteData, { showToast = true } = {}) {
+  const revision = Number(remoteData?.syncRevision || 0);
+  const remoteDeviceId = remoteData?.syncDeviceId || "";
+  const isOtherDevice = Boolean(remoteDeviceId && remoteDeviceId !== deviceId);
+  state.data = normalizeData({ ...cloneData(seed), ...remoteData });
+  state.lastRemoteRevision = Math.max(state.lastRemoteRevision || 0, revision);
+  state.lastRemoteDeviceId = remoteDeviceId;
+  state.syncStatus = "synced";
+  state.lastSyncedAt = new Date().toISOString();
+  state.lastSyncError = "";
+  if (showToast && isOtherDevice) setToast("Saved on another device. Updated here too.");
+}
+
+function cloudPayload() {
+  const nextRevision = Math.max(Number(state.data.syncRevision || 0), Number(state.lastRemoteRevision || 0)) + 1;
+  state.data.syncRevision = nextRevision;
+  state.data.syncDeviceId = deviceId;
+  state.data.syncSavedAt = new Date().toISOString();
+  return {
+    ...state.data,
+    updatedAt: state.firebase.fireMod.serverTimestamp()
+  };
 }
 
 function startCloudListener() {
@@ -322,11 +365,13 @@ function startCloudListener() {
   state.cloudUnsubscribe = onSnapshot(ref, (snap) => {
     if (!snap.exists() || snap.metadata.hasPendingWrites) return;
     if (state.pendingCloudSync || readPendingSync(state.tenantId)) return;
-    state.data = normalizeData({ ...cloneData(seed), ...snap.data() });
+    const remoteData = snap.data();
+    const revision = Number(remoteData?.syncRevision || 0);
+    const remoteDeviceId = remoteData?.syncDeviceId || "";
+    if (remoteDeviceId === deviceId && revision <= Number(state.lastRemoteRevision || 0)) return;
+    if (revision && revision < Number(state.lastRemoteRevision || 0)) return;
+    applyCloudData(remoteData, { showToast: true });
     writeLocal();
-    state.syncStatus = "synced";
-    state.lastSyncedAt = new Date().toISOString();
-    state.lastSyncError = "";
     render();
   }, (error) => {
     console.warn("Live cloud sync failed", error);
@@ -357,16 +402,17 @@ async function persist() {
     state.syncStatus = "offline";
     return;
   }
-  const { doc, setDoc, serverTimestamp } = state.firebase.fireMod;
+  const { doc, setDoc } = state.firebase.fireMod;
   state.syncStatus = "syncing";
   try {
-    await setDoc(doc(state.db, "tenants", state.tenantId), {
-      ...state.data,
-      updatedAt: serverTimestamp()
-    });
+    const payload = cloudPayload();
+    writeLocal();
+    await setDoc(doc(state.db, "tenants", state.tenantId), payload);
     clearPendingSync();
     state.syncStatus = "synced";
     state.lastSyncedAt = new Date().toISOString();
+    state.lastRemoteRevision = Number(state.data.syncRevision || state.lastRemoteRevision || 0);
+    state.lastRemoteDeviceId = deviceId;
     state.lastSyncError = "";
   } catch (error) {
     markPendingSync();
@@ -389,8 +435,10 @@ async function persistSafely(successMessage, errorMessage = "Saved locally. Clou
 }
 
 function persistInBackground(errorMessage = "Saved locally. Cloud sync pending.", options = {}) {
-  const { showToast = true, renderOnError = true } = options;
-  persist().catch((error) => {
+  const { showToast = true, renderOnError = true, renderOnSuccess = true } = options;
+  persist().then(() => {
+    if (renderOnSuccess) render();
+  }).catch((error) => {
     console.warn(errorMessage, error);
     if (showToast && !state.toast) setToast(errorMessage, "error");
     if (renderOnError) render();
@@ -1427,6 +1475,8 @@ function cloudSyncPanel() {
     ["Login", state.user ? currentEmail() : "Not signed in"],
     ["Cloud", state.cloudReady ? "Connected" : "Not connected"],
     ["Tenant path", state.user ? `tenants/${state.tenantId}` : "Local demo"],
+    ["This device", deviceId.slice(0, 8)],
+    ["Sync revision", state.data.syncRevision || state.lastRemoteRevision || 0],
     ["Last sync", state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleString() : "Not synced yet"]
   ];
   return `
