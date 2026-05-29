@@ -37,6 +37,8 @@ const seed = {
     gstin: "",
     phone: "",
     address: "Your restaurant address",
+    logoUrl: "",
+    logoUpdatedAt: "",
     taxRate: 18,
     invoicePrefix: "CC",
     saveBillAfterPrint: false
@@ -553,6 +555,10 @@ function escapeAttr(value = "") {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function escapeHtml(value = "") {
+  return escapeAttr(value);
 }
 
 function render() {
@@ -1445,6 +1451,16 @@ function renderOutletSettings() {
           ${settingField("gstin", "GSTIN")}
           ${settingField("taxRate", "Tax rate %", "number")}
           <div class="field" style="grid-column:1/-1"><label>Address</label><textarea id="setting-address">${state.data.settings.address || ""}</textarea></div>
+          <div class="field restaurant-logo-field" style="grid-column:1/-1">
+            <label>Bill logo</label>
+            <div class="restaurant-logo-uploader">
+              ${state.data.settings.logoUrl ? `<img class="restaurant-logo-preview" src="${state.data.settings.logoUrl}" alt="${escapeAttr(state.data.settings.shopName || "Bill logo")}">` : `<div class="restaurant-logo-placeholder">No bill logo added</div>`}
+              <div>
+                <input class="input" id="setting-logo" type="file" accept="image/*">
+                <small class="muted">Shown at the top of printed bills and synced to your devices.</small>
+              </div>
+            </div>
+          </div>
         </div>
         <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
       </div>
@@ -1570,6 +1586,8 @@ function openAndroidPrinterSettings() {
 function printTextFromMarkup(markup = "") {
   const holder = document.createElement("div");
   holder.innerHTML = markup;
+  const preparedText = holder.querySelector("[data-print-text]")?.getAttribute("data-print-text");
+  if (preparedText) return preparedText;
   return holder.innerText
     .split("\n")
     .map((line) => line.trim())
@@ -1866,33 +1884,126 @@ function duePaymentRows() {
 
 function receiptMarkup(sale) {
   const settings = state.data.settings;
+  const plainText = formatReceiptText(sale, settings);
   return `
-    <div class="receipt">
-      <h3>${settings.shopName}</h3>
-      <small>${settings.address || ""}<br>${settings.phone || ""} ${settings.gstin ? `GSTIN: ${settings.gstin}` : ""}</small>
-      <p>Invoice: ${sale.invoiceNo}<br>Date: ${new Date(sale.createdAt).toLocaleString()}<br>Table: ${sale.tableName || "No table"}<br>Customer: ${sale.customerName}</p>
-      <hr>
-      ${sale.items.map((item) => `<p>${item.name}<br>${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}</p>`).join("")}
-      <hr>
-      <p>Subtotal: ${money(sale.subtotal)}<br>Discount: ${money(sale.discount)}<br>Tax: ${money(sale.tax)}<br><strong>Total: ${money(sale.total)}</strong><br>Paid: ${money(sale.paid)}<br>Change: ${money(Math.max(0, sale.paid - sale.total))}<br>Payment: ${sale.paymentMethod}</p>
-      <small>Thank you for your purchase</small>
+    <div class="receipt receipt-bill" data-print-text="${escapeAttr(plainText)}">
+      <div class="receipt-head">
+        ${settings.logoUrl ? `<img class="receipt-logo" src="${settings.logoUrl}" alt="${escapeAttr(settings.shopName || "Restaurant logo")}">` : ""}
+        <h3>${escapeHtml(settings.shopName || "PondyPOS Restaurant")}</h3>
+        <small>${escapeHtml(settings.address || "")}${settings.address ? "<br>" : ""}${escapeHtml(settings.phone || "")}${settings.gstin ? ` &bull; GSTIN: ${escapeHtml(settings.gstin)}` : ""}</small>
+      </div>
+      <div class="receipt-meta">
+        <span>Invoice</span><strong>${escapeHtml(sale.invoiceNo)}</strong>
+        <span>Date</span><strong>${escapeHtml(new Date(sale.createdAt).toLocaleString())}</strong>
+        <span>Table</span><strong>${escapeHtml(sale.tableName || "No table")}</strong>
+        <span>Customer</span><strong>${escapeHtml(sale.customerName || "Walk-in Customer")}</strong>
+      </div>
+      <table class="receipt-items">
+        <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+        <tbody>
+          ${sale.items.map((item) => `<tr><td><strong>${escapeHtml(item.name)}</strong><small>${money(item.price)} each</small></td><td>${Number(item.qty || 0)}</td><td>${money(item.qty * item.price)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="receipt-totals">
+        <div><span>Subtotal</span><strong>${money(sale.subtotal)}</strong></div>
+        <div><span>Discount</span><strong>${money(sale.discount)}</strong></div>
+        <div><span>Tax</span><strong>${money(sale.tax)}</strong></div>
+        <div class="grand"><span>Total</span><strong>${money(sale.total)}</strong></div>
+        <div><span>Paid</span><strong>${money(sale.paid)}</strong></div>
+        <div><span>Change</span><strong>${money(Math.max(0, sale.paid - sale.total))}</strong></div>
+        <div><span>Payment</span><strong>${escapeHtml(sale.paymentMethod)}</strong></div>
+      </div>
+      <p class="receipt-footer">Thank you for your purchase</p>
     </div>
   `;
 }
 
 function kotMarkup(kot) {
   const settings = state.data.settings;
+  const plainText = formatKotText(kot, settings);
   return `
-    <div class="receipt kot-print">
-      <h3>${settings.shopName}</h3>
-      <small>${settings.address || ""}<br>${settings.phone || ""}</small>
-      <p>KOT: ${kot.kotNo}<br>Date: ${new Date(kot.createdAt).toLocaleString()}<br>Table: ${kot.tableName}<br>Status: ${kot.status}</p>
-      <hr>
-      ${kot.items.map((item) => `<p><strong>${item.qty} x ${item.name}</strong>${item.notes ? `<br><small>${item.notes}</small>` : ""}</p>`).join("")}
-      <hr>
-      <small>Kitchen copy</small>
+    <div class="receipt kot-print" data-print-text="${escapeAttr(plainText)}">
+      <div class="receipt-head">
+        <h3>${escapeHtml(settings.shopName || "PondyPOS Restaurant")}</h3>
+        <small>${escapeHtml(settings.phone || "")}</small>
+      </div>
+      <div class="receipt-meta">
+        <span>KOT</span><strong>${escapeHtml(kot.kotNo)}</strong>
+        <span>Date</span><strong>${escapeHtml(new Date(kot.createdAt).toLocaleString())}</strong>
+        <span>Table</span><strong>${escapeHtml(kot.tableName)}</strong>
+        <span>Status</span><strong>${escapeHtml(kot.status)}</strong>
+      </div>
+      <table class="receipt-items kot-items">
+        <tbody>
+          ${kot.items.map((item) => `<tr><td><strong>${Number(item.qty || 0)} x ${escapeHtml(item.name)}</strong>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ""}</td></tr>`).join("")}
+        </tbody>
+      </table>
+      <p class="receipt-footer">Kitchen copy</p>
     </div>
   `;
+}
+
+function plainMoney(value) {
+  return `Rs ${Number(value || 0).toFixed(2)}`;
+}
+
+function cleanPrintText(value = "") {
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
+function printLine(label, value, width = 32) {
+  const left = cleanPrintText(label);
+  const right = cleanPrintText(value);
+  const spaces = Math.max(1, width - left.length - right.length);
+  return `${left}${" ".repeat(spaces)}${right}`;
+}
+
+function formatReceiptText(sale, settings = state.data.settings) {
+  const line = "-".repeat(32);
+  const items = (sale.items || []).flatMap((item) => [
+    cleanPrintText(item.name),
+    printLine(`${Number(item.qty || 0)} x ${plainMoney(item.price)}`, plainMoney(item.qty * item.price))
+  ]);
+  return [
+    cleanPrintText(settings.shopName || "PondyPOS Restaurant").toUpperCase(),
+    cleanPrintText(settings.address || ""),
+    cleanPrintText([settings.phone, settings.gstin ? `GSTIN: ${settings.gstin}` : ""].filter(Boolean).join("  ")),
+    line,
+    `Invoice: ${cleanPrintText(sale.invoiceNo)}`,
+    `Date: ${new Date(sale.createdAt).toLocaleString()}`,
+    `Table: ${cleanPrintText(sale.tableName || "No table")}`,
+    `Customer: ${cleanPrintText(sale.customerName || "Walk-in Customer")}`,
+    line,
+    ...items,
+    line,
+    printLine("Subtotal", plainMoney(sale.subtotal)),
+    printLine("Discount", plainMoney(sale.discount)),
+    printLine("Tax", plainMoney(sale.tax)),
+    printLine("TOTAL", plainMoney(sale.total)),
+    printLine("Paid", plainMoney(sale.paid)),
+    printLine("Change", plainMoney(Math.max(0, sale.paid - sale.total))),
+    `Payment: ${cleanPrintText(sale.paymentMethod)}`,
+    line,
+    "Thank you for your purchase"
+  ].filter(Boolean).join("\n");
+}
+
+function formatKotText(kot, settings = state.data.settings) {
+  const line = "-".repeat(32);
+  const items = (kot.items || []).map((item) => `${Number(item.qty || 0)} x ${cleanPrintText(item.name)}${item.notes ? `\n  ${cleanPrintText(item.notes)}` : ""}`);
+  return [
+    cleanPrintText(settings.shopName || "PondyPOS Restaurant").toUpperCase(),
+    cleanPrintText(settings.phone || ""),
+    line,
+    `KOT: ${cleanPrintText(kot.kotNo)}`,
+    `Date: ${new Date(kot.createdAt).toLocaleString()}`,
+    `Table: ${cleanPrintText(kot.tableName)}`,
+    `Status: ${cleanPrintText(kot.status)}`,
+    line,
+    ...items,
+    line,
+    "Kitchen copy"
+  ].filter(Boolean).join("\n");
 }
 
 function bindEvents() {
@@ -2061,6 +2172,7 @@ function bindEvents() {
   document.querySelector("#change-phone")?.addEventListener("click", resetPhoneOtp);
   document.querySelector("#google-signin")?.addEventListener("click", googleSignIn);
   document.querySelector("#signout")?.addEventListener("click", signOutCurrentUser);
+  document.querySelector("#sign-out")?.addEventListener("click", signOutCurrentUser);
   document.querySelector("#mobile-signout")?.addEventListener("click", signOutCurrentUser);
 }
 
@@ -2644,18 +2756,17 @@ async function uploadProductImage(id, file) {
   return getDownloadURL(imageRef);
 }
 
-async function imageFileToDataUrl(file) {
+async function imageFileToDataUrl(file, maxSize = 900, quality = 0.78) {
   if (!file?.type?.startsWith("image/")) return fileToDataUrl(file);
   try {
     const image = await loadImage(file);
-    const maxSize = 900;
     const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(image.width * ratio));
     canvas.height = Math.max(1, Math.round(image.height * ratio));
     const context = canvas.getContext("2d");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.78);
+    return canvas.toDataURL("image/jpeg", quality);
   } catch (error) {
     console.warn("Image resize failed", error);
     return fileToDataUrl(file);
@@ -2687,13 +2798,22 @@ function fileToDataUrl(file) {
 }
 
 async function saveSettings() {
+  const logoFile = document.querySelector("#setting-logo")?.files?.[0];
+  let logoUrl = state.data.settings.logoUrl || "";
+  let logoUpdatedAt = state.data.settings.logoUpdatedAt || "";
+  if (logoFile) {
+    logoUrl = await imageFileToDataUrl(logoFile, 520, 0.84);
+    logoUpdatedAt = new Date().toISOString();
+  }
   state.data.settings = {
     ...state.data.settings,
     shopName: document.querySelector("#setting-shopName").value.trim(),
     phone: document.querySelector("#setting-phone").value.trim(),
     gstin: document.querySelector("#setting-gstin").value.trim(),
     taxRate: Number(document.querySelector("#setting-taxRate").value || 0),
-    address: document.querySelector("#setting-address").value.trim()
+    address: document.querySelector("#setting-address").value.trim(),
+    logoUrl,
+    logoUpdatedAt
   };
   await persistSafely("Restaurant settings saved", "Restaurant settings saved locally. Cloud sync failed.");
   render();

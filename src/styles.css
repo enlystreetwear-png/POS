@@ -1422,24 +1422,150 @@ textarea:focus {
 }
 
 .receipt {
-  width: min(380px, 100%);
+  width: min(360px, 100%);
   margin: 0 auto;
   background: white;
   color: #111;
-  padding: 22px;
-  border: 1px dashed #aaa;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 20px;
+  border: 1px solid #d7dde4;
+  border-radius: 8px;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .receipt h3 {
   margin: 0;
   text-align: center;
+  font-size: 18px;
+  letter-spacing: 0;
 }
 
 .receipt small {
   display: block;
   text-align: center;
   margin: 6px 0 14px;
+}
+
+.receipt-head {
+  text-align: center;
+  border-bottom: 1px dashed #c4ccd5;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.receipt-logo {
+  display: block;
+  width: auto;
+  max-width: 92px;
+  max-height: 72px;
+  object-fit: contain;
+  margin: 0 auto 8px;
+}
+
+.receipt-meta {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 4px 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed #c4ccd5;
+  margin-bottom: 12px;
+}
+
+.receipt-meta span,
+.receipt-totals span {
+  color: #5c6670;
+}
+
+.receipt-meta strong,
+.receipt-totals strong {
+  text-align: right;
+}
+
+.receipt-items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.receipt-items th,
+.receipt-items td {
+  padding: 7px 0;
+  border-bottom: 1px solid #edf0f3;
+  vertical-align: top;
+}
+
+.receipt-items th {
+  color: #5c6670;
+  font-size: 11px;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.receipt-items th:nth-child(2),
+.receipt-items th:nth-child(3),
+.receipt-items td:nth-child(2),
+.receipt-items td:nth-child(3) {
+  text-align: right;
+}
+
+.receipt-items td small {
+  margin: 2px 0 0;
+  text-align: left;
+  color: #69737e;
+}
+
+.receipt-totals {
+  display: grid;
+  gap: 5px;
+  border-top: 1px dashed #c4ccd5;
+  padding-top: 12px;
+}
+
+.receipt-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.receipt-totals .grand {
+  font-size: 17px;
+  border-top: 1px solid #d7dde4;
+  border-bottom: 1px solid #d7dde4;
+  padding: 8px 0;
+  margin: 3px 0;
+}
+
+.receipt-footer {
+  text-align: center;
+  margin: 14px 0 0;
+  font-weight: 700;
+}
+
+.restaurant-logo-uploader {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.restaurant-logo-preview,
+.restaurant-logo-placeholder {
+  width: 96px;
+  height: 76px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.restaurant-logo-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 .print-stage {
@@ -3223,8 +3349,12 @@ textarea:focus {
   .receipt {
     position: fixed;
     inset: 0 auto auto 0;
-    width: 100%;
+    width: 80mm;
     border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 6mm;
+    font-size: 12px;
   }
 
   body.report-printing .report-content {
@@ -3238,5 +3368,17 @@ textarea:focus {
   body.report-printing .report-content .toolbar,
   body.report-printing .report-menu {
     display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .restaurant-logo-uploader {
+    grid-template-columns: 1fr;
+  }
+
+  .restaurant-logo-preview,
+  .restaurant-logo-placeholder {
+    width: 86px;
+    height: 68px;
   }
 }
