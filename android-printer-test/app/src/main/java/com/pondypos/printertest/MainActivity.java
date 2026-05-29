@@ -398,8 +398,8 @@ public class MainActivity extends Activity {
             Bitmap original = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
             if (original == null) return new byte[0];
 
-            int maxWidth = 96;
-            int maxHeight = 64;
+            int maxWidth = 168;
+            int maxHeight = 112;
             float ratio = Math.min(1f, Math.min((float) maxWidth / (float) original.getWidth(), (float) maxHeight / (float) original.getHeight()));
             int width = Math.max(1, Math.round(original.getWidth() * ratio));
             int height = Math.max(1, Math.round(original.getHeight() * ratio));
