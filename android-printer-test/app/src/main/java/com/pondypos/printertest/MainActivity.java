@@ -31,7 +31,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -46,6 +48,9 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 77;
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final String DEFAULT_URL = "https://pos-ebon-five.vercel.app/";
+    private static final int PRINT_CHUNK_BYTES = 16;
+    private static final int PRINT_CHUNK_DELAY_MS = 90;
+    private static final int LONG_RECEIPT_LOGO_LIMIT = 900;
 
     private Spinner printerSpinner;
     private WebView webView;
@@ -262,14 +267,14 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 BluetoothSocket socket = null;
+                int bytesSent = 0;
                 try {
-                    socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
-                    socket.connect();
+                    socket = connectPrinterSocket(device);
                     OutputStream output = socket.getOutputStream();
                     byte[] payload = escposBytes(text, logoDataUrl);
-                    writeInChunks(output, payload);
+                    bytesSent = writeInChunks(output, payload);
                     output.flush();
-                    Thread.sleep(2200);
+                    Thread.sleep(3000);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -277,23 +282,71 @@ public class MainActivity extends Activity {
                         }
                     });
                 } catch (Exception error) {
-                    final String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+                    final int printedBytes = bytesSent;
+                    final String message = friendlyPrintError(error, printedBytes);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            showStatus("Print failed: " + message);
+                            showStatus(message);
                         }
                     });
                 } finally {
-                    if (socket != null) {
-                        try {
-                            socket.close();
-                        } catch (Exception ignored) {
-                        }
-                    }
+                    closeQuietly(socket);
                 }
             }
         }).start();
+    }
+
+    private BluetoothSocket connectPrinterSocket(BluetoothDevice device) throws Exception {
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter != null) {
+            try {
+                adapter.cancelDiscovery();
+            } catch (Exception ignored) {
+            }
+        }
+
+        List<Exception> errors = new ArrayList<>();
+        BluetoothSocket socket = null;
+        if (Build.VERSION.SDK_INT >= 10) {
+            try {
+                socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+                socket.connect();
+                return socket;
+            } catch (Exception error) {
+                errors.add(error);
+                closeQuietly(socket);
+            }
+        }
+
+        try {
+            socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
+            socket.connect();
+            return socket;
+        } catch (Exception error) {
+            errors.add(error);
+            closeQuietly(socket);
+        }
+
+        try {
+            Method method = device.getClass().getMethod("createRfcommSocket", int.class);
+            socket = (BluetoothSocket) method.invoke(device, 1);
+            socket.connect();
+            return socket;
+        } catch (Exception error) {
+            errors.add(error);
+            closeQuietly(socket);
+        }
+
+        throw errors.isEmpty() ? new IOException("Could not connect printer") : errors.get(errors.size() - 1);
+    }
+
+    private void closeQuietly(BluetoothSocket socket) {
+        if (socket == null) return;
+        try {
+            socket.close();
+        } catch (Exception ignored) {
+        }
     }
 
     private byte[] escposBytes(String text, String logoDataUrl) {
@@ -304,7 +357,7 @@ public class MainActivity extends Activity {
         byte[] codePage = new byte[]{0x1B, 0x74, 0x00};
         byte[] alignCenter = new byte[]{0x1B, 0x61, 0x01};
         byte[] alignLeft = new byte[]{0x1B, 0x61, 0x00};
-        byte[] logo = logoEscposBytes(logoDataUrl);
+        byte[] logo = body.length <= LONG_RECEIPT_LOGO_LIMIT ? logoEscposBytes(logoDataUrl) : new byte[0];
         ByteArrayOutputStream all = new ByteArrayOutputStream();
         try {
             all.write(init);
@@ -322,16 +375,17 @@ public class MainActivity extends Activity {
         return all.toByteArray();
     }
 
-    private void writeInChunks(OutputStream output, byte[] payload) throws Exception {
+    private int writeInChunks(OutputStream output, byte[] payload) throws Exception {
         int offset = 0;
-        int chunk = 32;
         while (offset < payload.length) {
-            int count = Math.min(chunk, payload.length - offset);
+            int count = Math.min(PRINT_CHUNK_BYTES, payload.length - offset);
             output.write(payload, offset, count);
-            output.flush();
             offset += count;
-            Thread.sleep(35);
+            if (offset % 160 == 0) output.flush();
+            Thread.sleep(PRINT_CHUNK_DELAY_MS);
         }
+        output.flush();
+        return offset;
     }
 
     private byte[] logoEscposBytes(String logoDataUrl) {
@@ -385,6 +439,15 @@ public class MainActivity extends Activity {
                 .replace("–", "-")
                 .replace("—", "-")
                 .replaceAll("[^\\x09\\x0A\\x0D\\x20-\\x7E]", "");
+    }
+
+    private String friendlyPrintError(Exception error, int bytesSent) {
+        String raw = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+        String lower = raw.toLowerCase(Locale.ROOT);
+        if (bytesSent > 0 && (lower.contains("socket") || lower.contains("read failed") || lower.contains("closed") || lower.contains("timeout"))) {
+            return "Print sent. If receipt stopped early, turn printer off/on and print again.";
+        }
+        return "Print failed: " + raw;
     }
 
     private String testReceiptText() {
