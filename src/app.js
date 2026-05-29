@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260529-reliable-sync";
+const assetVersion = "20260529-quiet-sync-scroll";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -318,7 +318,7 @@ async function pullCloudData() {
   if (snap.exists()) {
     if (!state.pendingCloudSync) {
       const remoteData = snap.data();
-      applyCloudData(remoteData, { showToast: false });
+      applyCloudData(remoteData);
       writeLocal();
     }
   } else {
@@ -334,17 +334,15 @@ async function pullCloudData() {
   }
 }
 
-function applyCloudData(remoteData, { showToast = true } = {}) {
+function applyCloudData(remoteData) {
   const revision = Number(remoteData?.syncRevision || 0);
   const remoteDeviceId = remoteData?.syncDeviceId || "";
-  const isOtherDevice = Boolean(remoteDeviceId && remoteDeviceId !== deviceId);
   state.data = normalizeData({ ...cloneData(seed), ...remoteData });
   state.lastRemoteRevision = Math.max(state.lastRemoteRevision || 0, revision);
   state.lastRemoteDeviceId = remoteDeviceId;
   state.syncStatus = "synced";
   state.lastSyncedAt = new Date().toISOString();
   state.lastSyncError = "";
-  if (showToast && isOtherDevice) setToast("Saved on another device. Updated here too.");
 }
 
 function cloudPayload() {
@@ -370,9 +368,9 @@ function startCloudListener() {
     const remoteDeviceId = remoteData?.syncDeviceId || "";
     if (remoteDeviceId === deviceId && revision <= Number(state.lastRemoteRevision || 0)) return;
     if (revision && revision < Number(state.lastRemoteRevision || 0)) return;
-    applyCloudData(remoteData, { showToast: true });
+    applyCloudData(remoteData);
     writeLocal();
-    render();
+    renderKeepingScroll();
   }, (error) => {
     console.warn("Live cloud sync failed", error);
     state.syncStatus = "error";
@@ -581,6 +579,13 @@ function render() {
     state.restoreMainScroll = null;
     state.restoreProductAnchor = null;
   }
+}
+
+function renderKeepingScroll() {
+  const main = document.querySelector(".main");
+  state.restoreMainScroll = main?.scrollTop ?? 0;
+  state.restoreProductAnchor = null;
+  render();
 }
 
 function createIconsSafely() {
@@ -3062,7 +3067,7 @@ document.addEventListener("visibilitychange", () => {
   pullCloudData()
     .then(() => {
       if (!state.cloudUnsubscribe) startCloudListener();
-      render();
+      renderKeepingScroll();
     })
     .catch((error) => {
       console.warn("Cloud refresh failed", error);
