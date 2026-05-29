@@ -1560,7 +1560,13 @@ function renderModal() {
 
 function autoPrint(markup) {
   if (window.PondyPrinter?.printReceipt) {
-    window.PondyPrinter.printReceipt(printTextFromMarkup(markup));
+    const printText = printTextFromMarkup(markup);
+    const printLogo = printLogoFromMarkup(markup);
+    if (printLogo && window.PondyPrinter.printReceiptWithLogo) {
+      window.PondyPrinter.printReceiptWithLogo(printText, printLogo);
+    } else {
+      window.PondyPrinter.printReceipt(printText);
+    }
     setToast("Sent to Android printer");
     return;
   }
@@ -1593,6 +1599,25 @@ function printTextFromMarkup(markup = "") {
     .map((line) => line.trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function printLogoFromMarkup(markup = "") {
+  const holder = document.createElement("div");
+  holder.innerHTML = markup;
+  const src = holder.querySelector(".receipt-logo")?.getAttribute("src") || "";
+  return src.startsWith("data:image/") ? src : "";
+}
+
+async function withTimeout(promise, timeoutMs, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function actionKey(label = "") {
@@ -2647,6 +2672,7 @@ async function savePrintedBill() {
 async function completeSale(sale, tableId, customer) {
   if (state.checkoutBusy) return;
   state.checkoutBusy = true;
+  render();
   try {
     state.data.kots = (state.data.kots || []).map((kot) => kot.tableId === tableId ? { ...kot, status: "billed", billedAt: new Date().toISOString() } : kot);
     state.data.sales.unshift(sale);
@@ -2658,11 +2684,11 @@ async function completeSale(sale, tableId, customer) {
     state.mobileCartOpen = false;
     writeLocal();
     if (!state.data.settings.saveBillAfterPrint) autoPrint(receiptMarkup(sale));
-    await persist();
+    await withTimeout(persist(), 9000, "Firebase save timed out");
     setToast("Billing completed");
   } catch (error) {
     console.warn("Checkout cloud sync failed", error);
-    state.authError = "Billing completed locally, but cloud sync failed. Check Firebase rules and internet, then continue.";
+    state.authError = "Billing completed locally. Cloud sync will retry automatically when the connection is ready.";
     setToast("Billing completed locally. Cloud sync failed.", "error");
   } finally {
     state.checkoutBusy = false;
