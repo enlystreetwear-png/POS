@@ -1449,10 +1449,18 @@ function renderOutletSettings() {
         <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
       </div>
     </details>
-    <section class="panel settings-panel">
-      <div class="panel-header"><h3>Cloud Sync</h3></div>
-      ${cloudSyncPanel()}
-    </section>
+    <details class="panel settings-panel profile-dropdown">
+      <summary class="settings-dropdown-summary">
+        <span>
+          <strong>Cloud Sync</strong>
+          <small>${state.cloudReady ? "Connected" : "Not connected"} • Revision ${state.data.syncRevision || state.lastRemoteRevision || 0}</small>
+        </span>
+        ${icon("chevron-down")}
+      </summary>
+      <div class="settings-dropdown-body">
+        ${cloudSyncPanel()}
+      </div>
+    </details>
     <section class="panel settings-panel">
       <div class="panel-header"><h3>Billing Workflow</h3></div>
       <label class="toggle-setting"><span>Show save button after bill print</span><input id="setting-saveBillAfterPrint" type="checkbox" ${state.data.settings.saveBillAfterPrint ? "checked" : ""}><i></i></label>
@@ -2419,6 +2427,9 @@ async function saveKot() {
     console.warn("KOT cloud sync failed", error);
     setToast("KOT saved locally. Cloud sync failed.", "error");
   }
+  state.selectedTableId = "";
+  state.mobileCartOpen = false;
+  render();
 }
 
 async function addTable() {
