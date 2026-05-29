@@ -304,10 +304,11 @@ async function initFirebase() {
 }
 
 function withTimeout(promise, ms, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => window.setTimeout(() => reject(new Error(message)), ms))
-  ]);
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
 async function pullCloudData() {
@@ -559,6 +560,11 @@ function escapeAttr(value = "") {
 
 function escapeHtml(value = "") {
   return escapeAttr(value);
+}
+
+function cssIdent(value = "") {
+  if (globalThis.CSS?.escape) return CSS.escape(String(value));
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
 function render() {
@@ -966,12 +972,10 @@ function renderPOS() {
     const matchesSearch = [product.name, product.sku, category].join(" ").toLowerCase().includes(search);
     return matchesCategory && matchesSearch;
   });
-  const locked = !isSubscriptionActive();
   const table = selectedTable();
   const cart = currentCart();
   const draft = currentBillDraft();
-  const itemCount = cart.reduce((sum, item) => sum + item.qty, 0);
-  const current = totals(cart);
+  const locked = !isSubscriptionActive();
   return `
     ${locked ? renderSubscriptionBanner() : ""}
     <section class="grid pos-grid ${state.mobileCartOpen ? "cart-open" : ""}">
@@ -1023,18 +1027,10 @@ function renderPOS() {
             <div class="field"><label>Amount Paid</label><input class="input" id="paid" type="number" min="0" placeholder="0" value="${escapeAttr(draft.paid)}"></div>
           </div>
           ${renderSummary()}
-          <div class="bill-actions">
-            <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
-            ${state.pendingBill?.tableId === state.selectedTableId
-              ? `<button class="button" id="save-printed-bill" ${state.checkoutBusy ? "disabled" : ""}>${icon("save")} ${state.checkoutBusy ? "Saving..." : "Save bill"}</button>`
-              : `<button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : state.data.settings.saveBillAfterPrint ? "Print bill" : "BILL"}</button>`}
-          </div>
+          ${renderBillActions(cart)}
         </div>
       </aside>
-      <button class="mobile-cart-button" id="mobile-cart-toggle">
-        <span>${icon(state.mobileCartOpen ? "utensils" : "shopping-cart")} ${state.mobileCartOpen ? "Back to menu" : "Cart"}</span>
-        <strong>${itemCount} item${itemCount === 1 ? "" : "s"} • ${money(current.total)}</strong>
-      </button>
+      ${renderMobileCartButton(cart)}
     </section>
   `;
 }
@@ -1102,7 +1098,7 @@ function renderProductCard(product) {
   const cartItem = currentCart().find((item) => item.id === product.id);
   const quantity = Number(cartItem?.qty || 0);
   return `
-    <article class="product-card ${quantity ? "in-cart" : ""}">
+    <article class="product-card ${quantity ? "in-cart" : ""}" data-product-card="${product.id}">
       ${quantity ? `
         <button class="product-remove" data-dec="${product.id}" title="Remove one ${escapeAttr(product.name)}">${icon(quantity === 1 ? "trash-2" : "minus", 15)}</button>
         <span class="product-qty-badge">${quantity}</span>
@@ -1116,6 +1112,29 @@ function renderProductCard(product) {
         </div>
       </button>
     </article>
+  `;
+}
+
+function renderBillActions(cart = currentCart()) {
+  const locked = !isSubscriptionActive();
+  return `
+    <div class="bill-actions">
+      <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
+      ${state.pendingBill?.tableId === state.selectedTableId
+        ? `<button class="button" id="save-printed-bill" ${state.checkoutBusy ? "disabled" : ""}>${icon("save")} ${state.checkoutBusy ? "Saving..." : "Save bill"}</button>`
+        : `<button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : state.data.settings.saveBillAfterPrint ? "Print bill" : "BILL"}</button>`}
+    </div>
+  `;
+}
+
+function renderMobileCartButton(cart = currentCart()) {
+  const itemCount = cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const current = totals(cart);
+  return `
+    <button class="mobile-cart-button" id="mobile-cart-toggle">
+      <span>${icon(state.mobileCartOpen ? "utensils" : "shopping-cart")} ${state.mobileCartOpen ? "Back to menu" : "Cart"}</span>
+      <strong>${itemCount} item${itemCount === 1 ? "" : "s"} • ${money(current.total)}</strong>
+    </button>
   `;
 }
 
@@ -1608,18 +1627,6 @@ function printLogoFromMarkup(markup = "") {
   return src.startsWith("data:image/") ? src : "";
 }
 
-async function withTimeout(promise, timeoutMs, message) {
-  let timeoutId;
-  const timeout = new Promise((_, reject) => {
-    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 function actionKey(label = "") {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -1989,16 +1996,35 @@ function centerPrintLine(value, width = 32) {
   return `${" ".repeat(spaces)}${text}`;
 }
 
+function wrapPrintText(value = "", width = 32) {
+  const words = cleanPrintText(value).split(" ").filter(Boolean);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    if (!line) {
+      line = word.slice(0, width);
+      return;
+    }
+    if (`${line} ${word}`.length <= width) line = `${line} ${word}`;
+    else {
+      lines.push(line);
+      line = word.slice(0, width);
+    }
+  });
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
 function formatReceiptText(sale, settings = state.data.settings) {
   const line = "-".repeat(32);
   const items = (sale.items || []).flatMap((item) => [
-    cleanPrintText(item.name),
+    ...wrapPrintText(item.name),
     printLine(`${Number(item.qty || 0)} x ${plainMoney(item.price)}`, plainMoney(item.qty * item.price))
   ]);
   return [
     centerPrintLine(settings.shopName || "PondyPOS Restaurant"),
     centerPrintLine(settings.phone || ""),
-    cleanPrintText(settings.address || ""),
+    ...wrapPrintText(settings.address || ""),
     cleanPrintText(settings.gstin ? `GSTIN: ${settings.gstin}` : ""),
     line,
     `Invoice: ${cleanPrintText(sale.invoiceNo)}`,
@@ -2103,10 +2129,6 @@ function bindEvents() {
   document.querySelector("#add-table")?.addEventListener("click", addTable);
   document.querySelector("#remove-table")?.addEventListener("click", removeTable);
   document.querySelector("#back-to-tables")?.addEventListener("click", backToTables);
-  document.querySelector("#mobile-cart-toggle")?.addEventListener("click", () => {
-    state.mobileCartOpen = !state.mobileCartOpen;
-    render();
-  });
   document.querySelector("#mobile-close-cart")?.addEventListener("click", () => {
     state.mobileCartOpen = false;
     render();
@@ -2127,11 +2149,7 @@ function bindEvents() {
       render();
     });
   });
-  document.querySelectorAll("[data-add]").forEach((button) => {
-    button.addEventListener("click", () => addToCart(button.dataset.add, button));
-  });
-  document.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1, button)));
-  document.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1, button)));
+  bindCartAndProductControls();
   document.querySelector("#clear-cart")?.addEventListener("click", async () => {
     const tableId = state.selectedTableId;
     const hadItems = Boolean(tableId && (state.data.openBills[tableId] || []).length);
@@ -2162,9 +2180,6 @@ function bindEvents() {
     currentBillDraft().paid = event.target.value;
     updateSummaryOnly();
   });
-  document.querySelector("#save-kot")?.addEventListener("click", saveKot);
-  document.querySelector("#checkout")?.addEventListener("click", checkout);
-  document.querySelector("#save-printed-bill")?.addEventListener("click", savePrintedBill);
   document.querySelector("#renew-subscription")?.addEventListener("click", renewSubscription);
   document.querySelector("#new-product")?.addEventListener("click", () => { state.modal = { type: "product", product: {} }; render(); });
   document.querySelectorAll("[data-edit-product]").forEach((button) => button.addEventListener("click", () => {
@@ -2476,10 +2491,52 @@ function captureMenuScrollAnchor(productId, sourceElement) {
   state.restoreProductAnchor = card ? { id: productId, top: card.getBoundingClientRect().top } : null;
 }
 
+function bindCartAndProductControls(scope = document) {
+  scope.querySelectorAll("[data-add]").forEach((button) => {
+    button.addEventListener("click", () => addToCart(button.dataset.add, button));
+  });
+  scope.querySelectorAll("[data-inc]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.inc, 1, button)));
+  scope.querySelectorAll("[data-dec]").forEach((button) => button.addEventListener("click", () => changeQty(button.dataset.dec, -1, button)));
+  scope.querySelector("#save-kot")?.addEventListener("click", saveKot);
+  scope.querySelector("#checkout")?.addEventListener("click", checkout);
+  scope.querySelector("#save-printed-bill")?.addEventListener("click", savePrintedBill);
+  scope.querySelector("#mobile-cart-toggle")?.addEventListener("click", () => {
+    state.mobileCartOpen = !state.mobileCartOpen;
+    render();
+  });
+}
+
+function refreshCartUi(changedProductId = "") {
+  const cart = currentCart();
+  const product = state.data.products.find((item) => item.id === changedProductId);
+  const card = changedProductId ? document.querySelector(`[data-product-card="${cssIdent(changedProductId)}"]`) : null;
+  if (product && card) {
+    card.outerHTML = renderProductCard(product);
+    const nextCard = document.querySelector(`[data-product-card="${cssIdent(changedProductId)}"]`);
+    if (nextCard) bindCartAndProductControls(nextCard);
+  }
+  const cartList = document.querySelector(".cart-list");
+  if (cartList) {
+    cartList.innerHTML = cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to this table bill</div>`;
+    bindCartAndProductControls(cartList);
+  }
+  const summary = document.querySelector(".summary");
+  if (summary) summary.outerHTML = renderSummary();
+  const actions = document.querySelector(".bill-actions");
+  if (actions) actions.outerHTML = renderBillActions(cart);
+  const mobileButton = document.querySelector(".mobile-cart-button");
+  if (mobileButton) mobileButton.outerHTML = renderMobileCartButton(cart);
+  bindCartAndProductControls(document.querySelector(".bill-footer") || document);
+  document.querySelector("#mobile-cart-toggle")?.addEventListener("click", () => {
+    state.mobileCartOpen = !state.mobileCartOpen;
+    render();
+  });
+  createIconsSafely();
+}
+
 function addToCart(id, sourceElement = null) {
   if (!state.selectedTableId) return;
   state.pendingBill = null;
-  captureMenuScrollAnchor(id, sourceElement);
   const product = state.data.products.find((item) => item.id === id);
   if (!product) return;
   const cart = currentCart();
@@ -2487,12 +2544,11 @@ function addToCart(id, sourceElement = null) {
   if (existing) existing.qty += 1;
   else cart.push({ id: product.id, name: product.name, price: Number(product.price), qty: 1 });
   persistInBackground("Item saved locally. Cloud sync pending.", { showToast: false, renderOnError: false });
-  render();
+  refreshCartUi(id);
 }
 
 function changeQty(id, amount, sourceElement = null) {
   state.pendingBill = null;
-  captureMenuScrollAnchor(id, sourceElement);
   const cart = currentCart();
   const item = cart.find((cartItem) => cartItem.id === id);
   if (!item) return;
@@ -2502,7 +2558,7 @@ function changeQty(id, amount, sourceElement = null) {
   setCurrentCart(nextCart);
   syncActiveKotsWithTable(tableId, nextCart);
   persistInBackground("Quantity saved locally. Cloud sync pending.", { showToast: false, renderOnError: false });
-  render();
+  refreshCartUi(id);
 }
 
 function syncActiveKotsWithTable(tableId, cart) {

@@ -269,7 +269,7 @@ public class MainActivity extends Activity {
                     byte[] payload = escposBytes(text, logoDataUrl);
                     writeInChunks(output, payload);
                     output.flush();
-                    Thread.sleep(900);
+                    Thread.sleep(2200);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -324,13 +324,13 @@ public class MainActivity extends Activity {
 
     private void writeInChunks(OutputStream output, byte[] payload) throws Exception {
         int offset = 0;
-        int chunk = 96;
+        int chunk = 32;
         while (offset < payload.length) {
             int count = Math.min(chunk, payload.length - offset);
             output.write(payload, offset, count);
             output.flush();
             offset += count;
-            Thread.sleep(18);
+            Thread.sleep(35);
         }
     }
 
