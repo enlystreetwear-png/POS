@@ -1163,7 +1163,6 @@ function renderReports() {
   const date = state.reportDate || localDateKey();
   const sales = dailyReportSales(date);
   const totals = dailyReportTotals(sales);
-  const selectedSale = sales.find((sale) => sale.id === state.selectedReportSaleId);
   return `
     <section class="report-shell">
       <section class="panel report-content">
@@ -1180,9 +1179,6 @@ function renderReports() {
             <div class="panel-subheader"><h4>Orders</h4><span>${sales.length} orders</span></div>
             <input class="input report-search" id="report-search" placeholder="Search order" value="${escapeAttr(state.reportSearch)}">
             ${renderDailyOrderList(sales)}
-          </div>
-          <div class="report-order-detail">
-            ${selectedSale ? renderDailyOrderDetail(selectedSale) : ""}
           </div>
         </div>
       </section>
@@ -1242,13 +1238,16 @@ function renderDailyOrderList(sales) {
   return `
     <div class="daily-order-list">
       ${sales.map((sale) => `
-        <button class="daily-order-row ${sale.id === state.selectedReportSaleId ? "active" : ""}" data-report-sale="${sale.id}">
-          <span>
-            <strong>${sale.invoiceNo}</strong>
-            <small>${new Date(sale.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • ${sale.tableName || "No table"} • ${sale.paymentMethod}</small>
-          </span>
-          <b>${money(sale.total)}</b>
-        </button>
+        <article class="daily-order-card ${sale.id === state.selectedReportSaleId ? "open" : ""}">
+          <button class="daily-order-row ${sale.id === state.selectedReportSaleId ? "active" : ""}" data-report-sale="${sale.id}" aria-expanded="${sale.id === state.selectedReportSaleId ? "true" : "false"}">
+            <span>
+              <strong>${sale.invoiceNo}</strong>
+              <small>${new Date(sale.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • ${sale.tableName || "No table"} • ${sale.paymentMethod}</small>
+            </span>
+            <span class="daily-order-total"><b>${money(sale.total)}</b>${icon(sale.id === state.selectedReportSaleId ? "chevron-up" : "chevron-down", 16)}</span>
+          </button>
+          ${sale.id === state.selectedReportSaleId ? `<div class="daily-order-dropdown">${renderDailyOrderDetail(sale)}</div>` : ""}
+        </article>
       `).join("")}
     </div>
   `;
@@ -1256,7 +1255,7 @@ function renderDailyOrderList(sales) {
 
 function renderDailyOrderDetail(sale) {
   return `
-    <div class="panel-subheader">
+    <div class="panel-subheader order-detail-header">
       <div>
         <h4>${sale.invoiceNo}</h4>
         <span>${sale.tableName || "No table"} • ${sale.customerName || "Walk-in Customer"} • ${new Date(sale.createdAt).toLocaleString()}</span>
@@ -1811,7 +1810,7 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-report-sale]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.selectedReportSaleId = button.dataset.reportSale;
+      state.selectedReportSaleId = state.selectedReportSaleId === button.dataset.reportSale ? "" : button.dataset.reportSale;
       render();
     });
   });
