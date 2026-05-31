@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260529-queued-sync-scroll";
+const assetVersion = "20260601-pos-models";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -12,6 +12,8 @@ const googleRedirectSessionKey = "pondypos-google-redirect-pending";
 const dataStoragePrefix = "pondypos-data";
 const pendingSyncPrefix = "pondypos-pending-sync";
 const deviceIdKey = "pondypos-device-id";
+const posTypeKey = "pondypos-selected-pos-type";
+const generalCounterId = "GENERAL-COUNTER";
 
 function newId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -31,6 +33,14 @@ const demoProducts = [
   { id: newId(), name: "Fresh Lime Soda", sku: "BEV-044", category: "Beverages", price: 70, cost: 24, imageUrl: "" }
 ];
 
+const retailDemoProducts = [
+  { id: newId(), name: "Rice 1kg", sku: "GRC-001", category: "Grocery", price: 68, cost: 56, imageUrl: "" },
+  { id: newId(), name: "Sunflower Oil 1L", sku: "GRC-014", category: "Grocery", price: 145, cost: 128, imageUrl: "" },
+  { id: newId(), name: "Bath Soap", sku: "HPC-021", category: "Home Care", price: 42, cost: 31, imageUrl: "" },
+  { id: newId(), name: "Toothpaste", sku: "HPC-044", category: "Home Care", price: 99, cost: 74, imageUrl: "" },
+  { id: newId(), name: "Chocolate Bar", sku: "SNK-008", category: "Snacks", price: 25, cost: 18, imageUrl: "" }
+];
+
 const seed = {
   settings: {
     shopName: "PondyPOS Restaurant",
@@ -41,7 +51,8 @@ const seed = {
     logoUpdatedAt: "",
     taxRate: 18,
     invoicePrefix: "CC",
-    saveBillAfterPrint: false
+    saveBillAfterPrint: false,
+    posType: "restaurant"
   },
   tables: [
     { id: "T1", name: "Table 1", seats: 2 },
@@ -119,6 +130,7 @@ const state = {
   restoreProductAnchor: null,
   modal: null,
   authError: "",
+  selectedPosType: readStorage(posTypeKey) || "restaurant",
   lastReceipt: null,
   printContent: "",
   pendingBill: null
@@ -176,6 +188,7 @@ function normalizeData(data) {
   const settings = { ...freshSeed.settings, ...(data.settings || {}) };
   if (settings.shopName === "CounterCloud Store" || settings.shopName === "CounterCloud Restaurant") settings.shopName = freshSeed.settings.shopName;
   if (settings.address === "Your store address") settings.address = freshSeed.settings.address;
+  settings.posType = settings.posType === "general" ? "general" : "restaurant";
   return {
     ...freshSeed,
     ...data,
@@ -192,6 +205,73 @@ function normalizeData(data) {
   };
 }
 
+function posType() {
+  return state.data?.settings?.posType === "general" ? "general" : "restaurant";
+}
+
+function isGeneralPOS() {
+  return posType() === "general";
+}
+
+function posLabels() {
+  return isGeneralPOS()
+    ? {
+        posTitle: "Billing",
+        posNav: "Billing",
+        products: "Products",
+        customers: "Customers",
+        profile: "Store Profile",
+        profileName: "Store name",
+        address: "Store address",
+        context: "Counter sale",
+        emptyCart: "Scan or tap products to add them to this bill",
+        receiptLocationLabel: "Bill type",
+        receiptLocationValue: "Counter Sale"
+      }
+    : {
+        posTitle: "Restaurant Tables",
+        posNav: "Tables",
+        products: "Menu",
+        customers: "Guests",
+        profile: "Restaurant Profile",
+        profileName: "Restaurant name",
+        address: "Restaurant address",
+        context: "Table",
+        emptyCart: "Tap products to add them to this table bill",
+        receiptLocationLabel: "Table",
+        receiptLocationValue: "No table"
+      };
+}
+
+function preferredSeedProducts(type = posType()) {
+  return type === "general" ? cloneData(retailDemoProducts) : cloneData(seed.products);
+}
+
+function applySelectedPosTypeToData() {
+  const nextType = state.selectedPosType === "general" ? "general" : "restaurant";
+  const previousType = state.data.settings?.posType || "restaurant";
+  state.data.settings = {
+    ...state.data.settings,
+    posType: nextType,
+    shopName: !state.data.settings?.shopName || state.data.settings.shopName === "PondyPOS Restaurant" || state.data.settings.shopName === "PondyPOS Store"
+      ? (nextType === "general" ? "PondyPOS Store" : "PondyPOS Restaurant")
+      : state.data.settings.shopName,
+    address: !state.data.settings?.address || state.data.settings.address === "Your restaurant address" || state.data.settings.address === "Your store address"
+      ? (nextType === "general" ? "Your store address" : "Your restaurant address")
+      : state.data.settings.address
+  };
+  if (previousType !== nextType && isDefaultSeedProducts(state.data.products)) {
+    state.data.products = normalizeProducts(preferredSeedProducts(nextType));
+  }
+  if (nextType === "general") ensureGeneralCounter();
+}
+
+function ensureGeneralCounter() {
+  state.selectedTableId = generalCounterId;
+  state.data.openBills ||= {};
+  state.data.openBills[generalCounterId] ||= [];
+}
+
 function normalizeProducts(products = []) {
   return products.map(({ stock, ...product }) => product);
 }
@@ -200,6 +280,13 @@ function shouldUseRestaurantSeed(products = []) {
   if (!products.length) return true;
   const oldDemoNames = ["Notebook", "USB Cable", "Veg Sandwich", "Cold Coffee"];
   return products.some((product) => oldDemoNames.includes(product.name));
+}
+
+function isDefaultSeedProducts(products = []) {
+  const names = products.map((product) => product.name).sort().join("|");
+  const restaurantNames = demoProducts.map((product) => product.name).sort().join("|");
+  const retailNames = retailDemoProducts.map((product) => product.name).sort().join("|");
+  return !products.length || names === restaurantNames || names === retailNames || shouldUseRestaurantSeed(products);
 }
 
 function addYears(date, years) {
@@ -280,6 +367,7 @@ async function initFirebase() {
       state.user = user;
       state.tenantId = user?.uid || "demo";
       state.data = readLocal(state.tenantId);
+      if (user) applySelectedPosTypeToData();
       state.pendingCloudSync = readPendingSync(state.tenantId);
       state.selectedTableId = "";
       state.authReady = true;
@@ -289,6 +377,8 @@ async function initFirebase() {
       if (user) {
         try {
           await pullCloudData();
+          applySelectedPosTypeToData();
+          await persist();
           await syncPendingIfOnline({ silent: true });
           startCloudListener();
           render();
@@ -508,6 +598,9 @@ function setCurrentCart(cart) {
 }
 
 function selectedTable() {
+  if (isGeneralPOS() && state.selectedTableId === generalCounterId) {
+    return { id: generalCounterId, name: "Counter Sale", seats: 0 };
+  }
   return state.data.tables.find((table) => table.id === state.selectedTableId);
 }
 
@@ -539,7 +632,7 @@ function totals(cart = currentCart()) {
 function setView(view) {
   state.view = view;
   if (view === "pos") {
-    state.selectedTableId = "";
+    state.selectedTableId = isGeneralPOS() ? generalCounterId : "";
     state.mobileCartOpen = false;
   }
   state.modal = null;
@@ -632,13 +725,13 @@ function renderAuth() {
         <div class="brand" style="margin-bottom:42px">
           <img class="auth-hero-logo" src="${markDarkUrl}" alt="PondyPOS">
         </div>
-        <span class="eyebrow">Cloud restaurant operations</span>
+        <span class="eyebrow">Cloud POS operations</span>
         <h1>PondyPOS</h1>
-        <p>Table-first billing, menu control, guest records, order history, and annual SaaS licensing in one responsive restaurant workspace.</p>
+        <p>Choose restaurant billing or general retail billing, then run products, customers, receipts, reports, and Firebase sync from one responsive workspace.</p>
         <div class="auth-proof">
-          <div><strong>Table-first</strong><span>Open bills by table</span></div>
+          <div><strong>Restaurant</strong><span>Tables and KOT</span></div>
+          <div><strong>General POS</strong><span>Counter billing</span></div>
           <div><strong>Cloud-ready</strong><span>Firebase sync</span></div>
-          <div><strong>Mobile + PC</strong><span>One interface</span></div>
         </div>
       </section>
       <section class="auth-card">
@@ -648,6 +741,10 @@ function renderAuth() {
         </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
         ${waitingForFirebase ? `<div class="auth-loading">${icon("loader-circle")}<span>Connecting to Firebase. Login will be ready in a moment.</span></div>` : ""}
+        <div class="pos-type-picker" role="radiogroup" aria-label="Choose POS type">
+          ${renderPosTypeOption("restaurant", "Restaurant POS", "Tables, KOT, menu billing", "utensils")}
+          ${renderPosTypeOption("general", "General POS", "Products, barcode, counter sale", "shopping-bag")}
+        </div>
         <h2>Sign in with phone OTP</h2>
         <div class="field"><label>Phone number</label><input class="input" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" value="${escapeAttr(state.phoneNumber || "")}" ${state.otpSent ? "disabled" : ""}></div>
         ${state.otpSent ? `<div class="field"><label>OTP code</label><input class="input" id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit OTP" maxlength="8"></div>` : ""}
@@ -659,6 +756,16 @@ function renderAuth() {
         <button class="button google" id="google-signin" ${googleDisabled ? "disabled" : ""}>${icon("chrome")} ${googleText}</button>
       </section>
     </main>
+  `;
+}
+
+function renderPosTypeOption(type, title, text, iconName) {
+  const active = state.selectedPosType === type;
+  return `
+    <button class="pos-type-option ${active ? "active" : ""}" data-pos-type="${type}" type="button" aria-pressed="${active}">
+      ${icon(iconName)}
+      <span><strong>${title}</strong><small>${text}</small></span>
+    </button>
   `;
 }
 
@@ -693,31 +800,33 @@ function renderShell() {
 }
 
 function renderBrand() {
+  const labels = posLabels();
   return `
     <div class="brand">
       <button class="brand-toggle" id="brand-toggle" title="${state.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}">
         <span class="brand-mark"><img src="${markDarkUrl}" alt="PondyPOS"></span>
-        <span class="brand-text"><h1>PondyPOS</h1><span>Restaurant POS</span></span>
+        <span class="brand-text"><h1>PondyPOS</h1><span>${isGeneralPOS() ? "General POS" : "Restaurant POS"}</span></span>
       </button>
     </div>
   `;
 }
 
 function renderNav(className) {
+  const labels = posLabels();
   const items = [
-    ["pos", "utensils", "Tables"],
+    ["pos", isGeneralPOS() ? "shopping-cart" : "utensils", labels.posNav],
     ["dashboard", "layout-dashboard", "Dashboard"],
     ["reports", "chart-line", "Reports"],
     ["settings", "settings", "Settings"],
-    ["products", "clipboard-list", "Menu"],
-    ["customers", "users", "Guests"],
+    ["products", isGeneralPOS() ? "package" : "clipboard-list", labels.products],
+    ["customers", "users", labels.customers],
     ["sales", "receipt-text", "Orders"],
     ["subscription", "badge-indian-rupee", "Plan"]
   ];
   const mobileItems = [
-    ["pos", "utensils", "Tables"],
+    ["pos", isGeneralPOS() ? "shopping-cart" : "utensils", labels.posNav],
     ["dashboard", "layout-dashboard", "Dashboard"],
-    ["products", "clipboard-list", "Menu"],
+    ["products", isGeneralPOS() ? "package" : "clipboard-list", labels.products],
     ["reports", "chart-line", "Reports"],
     ["settings", "settings", "Settings"]
   ];
@@ -740,13 +849,14 @@ function mobileActiveView() {
 
 function renderTopbar() {
   if (state.view === "pos") return "";
+  const labels = posLabels();
   const titles = {
-    pos: ["Restaurant Tables", "Select a table, add menu items, accept payment, and print receipts."],
-    dashboard: ["Restaurant Dashboard", "Today’s revenue, expenses, profit, and orders."],
+    pos: [labels.posTitle, isGeneralPOS() ? "Add products, accept payment, and print receipts." : "Select a table, add menu items, accept payment, and print receipts."],
+    dashboard: [isGeneralPOS() ? "Store Dashboard" : "Restaurant Dashboard", "Today’s revenue, expenses, profit, and orders."],
     reports: ["Reports", "Daily order summary and printable order details."],
-    settings: ["Outlet Settings", "Configure billing screen, printing, taxes, customers, and restaurant profile."],
-    products: ["Menu", "Manage menu items, kitchen categories, pricing, and images."],
-    customers: ["Guests", "Track guest details and visit totals."],
+    settings: ["Outlet Settings", `Configure billing, printing, taxes, customers, and ${labels.profile.toLowerCase()}.`],
+    products: [labels.products, isGeneralPOS() ? "Manage products, categories, selling price, cost, barcode/SKU, and images." : "Manage menu items, kitchen categories, pricing, and images."],
+    customers: [labels.customers, "Track customer details and visit totals."],
     sales: ["Order History", "Review table invoices and reprint receipts."],
     subscription: ["Subscription", "Manage the one-year POS subscription for this store."]
   };
@@ -946,11 +1056,14 @@ function statusTile(label, value, iconName) {
 function businessHealth() {
   const hasFirebase = Boolean(state.user);
   const openBills = state.data.tables.filter((table) => (state.data.openBills[table.id] || []).length).length;
+  const counterItems = (state.data.openBills[generalCounterId] || []).length;
   const profileReady = Boolean(state.data.settings.shopName && state.data.settings.phone && state.data.settings.address);
   return [
     { status: hasFirebase ? "ok" : "warn", title: "Cloud account", text: hasFirebase ? "Data is separated by Firebase login." : "Login with phone or Google for cloud sync." },
-    { status: profileReady ? "ok" : "warn", title: "Restaurant profile", text: profileReady ? "Receipt identity is ready." : "Add phone and address in Settings." },
-    { status: openBills ? "warn" : "ok", title: "Open tables", text: openBills ? `${openBills} running bills need settlement.` : "No open table bills." }
+    { status: profileReady ? "ok" : "warn", title: posLabels().profile, text: profileReady ? "Receipt identity is ready." : "Add phone and address in Settings." },
+    isGeneralPOS()
+      ? { status: counterItems ? "warn" : "ok", title: "Counter bill", text: counterItems ? `${counterItems} products in current bill.` : "Counter is ready." }
+      : { status: openBills ? "warn" : "ok", title: "Open tables", text: openBills ? `${openBills} running bills need settlement.` : "No open table bills." }
   ];
 }
 
@@ -960,7 +1073,10 @@ function lastClosingLabel() {
 }
 
 function renderPOS() {
-  if (!state.selectedTableId) return renderTablePicker();
+  const general = isGeneralPOS();
+  const labels = posLabels();
+  if (general) ensureGeneralCounter();
+  if (!general && !state.selectedTableId) return renderTablePicker();
   const categories = ["All", ...new Set(state.data.products.map((product) => product.category || "General"))].sort((a, b) =>
     a === "All" ? -1 : b === "All" ? 1 : a.localeCompare(b)
   );
@@ -982,14 +1098,16 @@ function renderPOS() {
       <div class="panel menu-panel">
         <div class="panel-header menu-panel-header">
           <div class="toolbar menu-titlebar">
-            <button class="button secondary compact" id="back-to-tables">${icon("arrow-left")} Tables</button>
+            ${general
+              ? `<button class="button secondary compact" id="new-retail-bill">${icon("plus")} New bill</button>`
+              : `<button class="button secondary compact" id="back-to-tables">${icon("arrow-left")} Tables</button>`}
             <div class="menu-context">
-              <h3>Menu</h3>
-              <span>${table?.name || "Table"}</span>
+              <h3>${labels.products}</h3>
+              <span>${table?.name || labels.context}</span>
             </div>
           </div>
-          <input class="input search" id="search" placeholder="Search menu item or scan SKU" value="${escapeAttr(state.search)}">
-          <div class="mobile-table-context">Billing for <strong>${escapeAttr(table?.name || "Table")}</strong></div>
+          <input class="input search" id="search" placeholder="${general ? "Search product or scan SKU/barcode" : "Search menu item or scan SKU"}" value="${escapeAttr(state.search)}">
+          <div class="mobile-table-context">Billing for <strong>${escapeAttr(table?.name || labels.context)}</strong></div>
         </div>
         <div class="category-scroll-shell">
           <div class="category-strip">
@@ -1019,7 +1137,7 @@ function renderPOS() {
           <button class="icon-button" id="clear-cart" title="Clear cart">${icon("trash-2")}</button>
         </div>
         <div class="bill-scroll">
-          <div class="cart-list">${cart.map(renderCartRow).join("") || `<div class="empty">Tap products to add them to this table bill</div>`}</div>
+          <div class="cart-list">${cart.map(renderCartRow).join("") || `<div class="empty">${labels.emptyCart}</div>`}</div>
         </div>
         <div class="bill-footer">
           <div class="form-grid bill-form">
@@ -1119,7 +1237,7 @@ function renderBillActions(cart = currentCart()) {
   const locked = !isSubscriptionActive();
   return `
     <div class="bill-actions">
-      <button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>
+      ${isGeneralPOS() ? "" : `<button class="button secondary" id="save-kot" ${locked || !cart.length ? "disabled" : ""}>${icon("scroll-text")} KOT</button>`}
       ${state.pendingBill?.tableId === state.selectedTableId
         ? `<button class="button" id="save-printed-bill" ${state.checkoutBusy ? "disabled" : ""}>${icon("save")} ${state.checkoutBusy ? "Saving..." : "Save bill"}</button>`
         : `<button class="button" id="checkout" ${locked || state.checkoutBusy ? "disabled" : ""}>${icon("receipt-text")} ${state.checkoutBusy ? "Billing..." : state.data.settings.saveBillAfterPrint ? "Print bill" : "BILL"}</button>`}
@@ -1174,11 +1292,12 @@ function renderSummary() {
 }
 
 function renderProducts() {
+  const labels = posLabels();
   return `
     <section class="panel">
       <div class="panel-header">
-        <h3>Menu items</h3>
-        <button class="button" id="new-product">${icon("plus")} Menu item</button>
+        <h3>${isGeneralPOS() ? "Products" : "Menu items"}</h3>
+        <button class="button" id="new-product">${icon("plus")} ${isGeneralPOS() ? "Product" : "Menu item"}</button>
       </div>
       <table class="table menu-table">
         <thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th></th></tr></thead>
@@ -1217,9 +1336,10 @@ function settingField(key, label, type = "text") {
 }
 
 function renderCustomers() {
+  const labels = posLabels();
   return `
     <section class="panel">
-      <div class="panel-header"><h3>Guest directory</h3><button class="button" id="new-customer">${icon("user-plus")} Guest</button></div>
+      <div class="panel-header"><h3>${labels.customers} directory</h3><button class="button" id="new-customer">${icon("user-plus")} ${isGeneralPOS() ? "Customer" : "Guest"}</button></div>
       <div class="customer-list">
         ${state.data.customers.map((customer) => `
           <div class="customer-row">
@@ -1235,7 +1355,7 @@ function renderCustomers() {
 function renderSales() {
   return `
     <section class="panel">
-      <div class="panel-header"><h3>Table invoices</h3></div>
+      <div class="panel-header"><h3>${isGeneralPOS() ? "Counter invoices" : "Table invoices"}</h3></div>
       ${renderSaleList(state.data.sales)}
     </section>
   `;
@@ -1251,7 +1371,7 @@ function renderSubscription() {
       <div>
         <span class="eyebrow">PondyPOS Annual</span>
         <h3>1 year POS subscription</h3>
-        <p>Keep billing, inventory, sales history, customers, Firebase sync, and product image storage available for one store account.</p>
+        <p>Keep billing, products, sales history, customers, Firebase sync, and product image storage available for one store account.</p>
       </div>
       <div class="plan-price">
         <strong>${money(subscription.amount || 4999)}</strong>
@@ -1379,11 +1499,12 @@ function renderDailyOrderList(sales) {
 }
 
 function renderDailyOrderDetail(sale) {
+  const labels = posLabels();
   return `
     <div class="panel-subheader order-detail-header">
       <div>
         <h4>${sale.invoiceNo}</h4>
-        <span>${sale.tableName || "No table"} • ${sale.customerName || "Walk-in Customer"} • ${new Date(sale.createdAt).toLocaleString()}</span>
+        <span>${sale.tableName || labels.receiptLocationValue} • ${sale.customerName || "Walk-in Customer"} • ${new Date(sale.createdAt).toLocaleString()}</span>
       </div>
       <button class="button secondary" id="print-report-order" data-sale-id="${sale.id}">${icon("printer", 16)} Print order</button>
     </div>
@@ -1411,17 +1532,18 @@ function dailySummaryPrintMarkup(date, sales) {
       <hr>
       <p>Orders: ${totals.orders}<br>Items sold: ${totals.items}<br>Subtotal: ${money(totals.subtotal)}<br>Discount: ${money(totals.discount)}<br>Tax: ${money(totals.tax)}<br><strong>Total sale: ${money(totals.total)}</strong></p>
       <hr>
-      ${sales.map((sale) => `<p>${sale.invoiceNo}<br>${sale.tableName || "No table"} • ${sale.paymentMethod} • ${orderItemCount(sale)} items<br><strong>${money(sale.total)}</strong></p>`).join("") || "<p>No orders</p>"}
+      ${sales.map((sale) => `<p>${sale.invoiceNo}<br>${sale.tableName || posLabels().receiptLocationValue} • ${sale.paymentMethod} • ${orderItemCount(sale)} items<br><strong>${money(sale.total)}</strong></p>`).join("") || "<p>No orders</p>"}
     </div>
   `;
 }
 
 function orderDetailPrintMarkup(sale) {
+  const labels = posLabels();
   return `
     <div class="receipt report-printout">
       <h3>${state.data.settings.shopName}</h3>
       <small>Order items</small>
-      <p>Invoice: ${sale.invoiceNo}<br>Date: ${new Date(sale.createdAt).toLocaleString()}<br>Table: ${sale.tableName || "No table"}<br>Customer: ${sale.customerName || "Walk-in Customer"}</p>
+      <p>Invoice: ${sale.invoiceNo}<br>Date: ${new Date(sale.createdAt).toLocaleString()}<br>${labels.receiptLocationLabel}: ${sale.tableName || labels.receiptLocationValue}<br>Customer: ${sale.customerName || "Walk-in Customer"}</p>
       <hr>
       ${(sale.items || []).map((item) => `<p>${item.name}<br>${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}</p>`).join("")}
       <hr>
@@ -1437,10 +1559,11 @@ function reportTable(headers, rows) {
 }
 
 function renderOutletSettings() {
+  const labels = posLabels();
   const groups = [
-    ["Restaurant Setup", [
-      ["Table Management", "table-2", "Add or remove tables."],
-      ["Print", "printer", "Bill and KOT printing."],
+    [isGeneralPOS() ? "Store Setup" : "Restaurant Setup", [
+      ...(isGeneralPOS() ? [] : [["Table Management", "table-2", "Add or remove tables."]]),
+      ["Print", "printer", isGeneralPOS() ? "Bill printing." : "Bill and KOT printing."],
       ["Tax", "badge-percent", "GST and tax rules."]
     ]],
     ["Billing Rules", [
@@ -1458,14 +1581,15 @@ function renderOutletSettings() {
     <details class="panel settings-panel profile-dropdown">
       <summary class="settings-dropdown-summary">
         <span>
-          <strong>Restaurant Profile</strong>
-          <small>${state.data.settings.shopName || "Restaurant name"} • ${state.data.settings.phone || "No phone added"}</small>
+          <strong>${labels.profile}</strong>
+          <small>${state.data.settings.shopName || labels.profileName} • ${state.data.settings.phone || "No phone added"}</small>
         </span>
         ${icon("chevron-down")}
       </summary>
       <div class="settings-dropdown-body">
         <div class="form-grid">
-          ${settingField("shopName", "Restaurant name")}
+          <div class="field"><label>POS type</label><select class="input" id="setting-posType"><option value="restaurant" ${!isGeneralPOS() ? "selected" : ""}>Restaurant POS</option><option value="general" ${isGeneralPOS() ? "selected" : ""}>General POS</option></select></div>
+          ${settingField("shopName", labels.profileName)}
           ${settingField("phone", "Phone")}
           ${settingField("gstin", "GSTIN")}
           ${settingField("taxRate", "Tax rate %", "number")}
@@ -1510,7 +1634,7 @@ function renderOutletSettings() {
     <section class="panel settings-panel mobile-more-panel">
       <div class="panel-header"><h3>Mobile Shortcuts</h3></div>
       <div class="settings-grid">
-        <button class="setting-card" data-view="customers">${icon("users")}<span><strong>Guests</strong><small>Customer names and visit records.</small></span></button>
+        <button class="setting-card" data-view="customers">${icon("users")}<span><strong>${labels.customers}</strong><small>Names and visit records.</small></span></button>
         <button class="setting-card" data-view="subscription">${icon("badge-indian-rupee")}<span><strong>Plan</strong><small>Annual license and renewal status.</small></span></button>
       </div>
     </section>
@@ -1550,10 +1674,11 @@ function cloudSyncPanel() {
 }
 
 function renderSaleList(sales) {
+  const labels = posLabels();
   if (!sales.length) return `<div class="empty">No invoices yet</div>`;
   return `<div class="sale-list">${sales.map((sale) => `
     <div class="sale-row">
-      <div><h4>${sale.invoiceNo} • ${sale.tableName || "No table"} • ${sale.customerName}</h4><p>${new Date(sale.createdAt).toLocaleString()} • ${sale.paymentMethod} • ${sale.items.length} items</p></div>
+      <div><h4>${sale.invoiceNo} • ${sale.tableName || labels.receiptLocationValue} • ${sale.customerName}</h4><p>${new Date(sale.createdAt).toLocaleString()} • ${sale.paymentMethod} • ${sale.items.length} items</p></div>
       <div style="display:flex;align-items:center;gap:10px"><strong>${money(sale.total)}</strong><button class="icon-button" data-receipt="${sale.id}" title="Receipt">${icon("printer")}</button></div>
     </div>
   `).join("")}</div>`;
@@ -1633,23 +1758,24 @@ function actionKey(label = "") {
 
 function renderProductModal(product = {}) {
   const imageSrc = productImageSrc(product);
+  const labels = posLabels();
   return `
     <div class="modal-backdrop">
       <section class="modal">
-        <div class="panel-header"><h3>${product.id ? "Edit menu item" : "New menu item"}</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
+        <div class="panel-header"><h3>${product.id ? `Edit ${isGeneralPOS() ? "product" : "menu item"}` : `New ${isGeneralPOS() ? "product" : "menu item"}`}</h3><button class="icon-button" data-close title="Close">${icon("x")}</button></div>
         <div class="form-grid">
           <div class="field product-image-field" style="grid-column:1/-1">
             <label>Current image</label>
-            ${imageSrc ? `<img class="product-image-preview" src="${imageSrc}" alt="${escapeAttr(product.name || "Menu item")}">` : `<div class="product-image-preview empty-preview">No image added</div>`}
+            ${imageSrc ? `<img class="product-image-preview" src="${imageSrc}" alt="${escapeAttr(product.name || labels.products)}">` : `<div class="product-image-preview empty-preview">No image added</div>`}
           </div>
           ${productInput("name", "Name", product.name)}
           ${productInput("sku", "SKU", product.sku)}
           ${productCategorySelect(product.category)}
-          ${productInput("price", "Menu price", product.price, "number")}
+          ${productInput("price", isGeneralPOS() ? "Selling price" : "Menu price", product.price, "number")}
           ${productInput("cost", "Cost", product.cost, "number")}
-          <div class="field" style="grid-column:1/-1"><label>Menu item image</label><input class="input" id="product-image" type="file" accept="image/*"></div>
+          <div class="field" style="grid-column:1/-1"><label>${isGeneralPOS() ? "Product image" : "Menu item image"}</label><input class="input" id="product-image" type="file" accept="image/*"></div>
         </div>
-        <button class="button" id="save-product" data-id="${product.id || ""}" style="margin-top:14px">${icon("save")} Save menu item</button>
+        <button class="button" id="save-product" data-id="${product.id || ""}" style="margin-top:14px">${icon("save")} Save ${isGeneralPOS() ? "product" : "menu item"}</button>
       </section>
     </div>
   `;
@@ -1660,7 +1786,9 @@ function productInput(key, label, value = "", type = "text") {
 }
 
 function productCategorySelect(value = "") {
-  const defaults = ["South Indian", "Curries", "Rice Bowls", "Breads", "Beverages", "Starters", "Desserts", "Combos"];
+  const defaults = isGeneralPOS()
+    ? ["Grocery", "Home Care", "Snacks", "Beverages", "Personal Care", "Stationery", "Electronics", "General"]
+    : ["South Indian", "Curries", "Rice Bowls", "Breads", "Beverages", "Starters", "Desserts", "Combos"];
   const categories = [...new Set([...defaults, ...state.data.products.map((product) => product.category || "General"), value || "General"])]
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
@@ -1916,6 +2044,7 @@ function duePaymentRows() {
 
 function receiptMarkup(sale) {
   const settings = state.data.settings;
+  const labels = posLabels();
   const plainText = formatReceiptText(sale, settings);
   return `
     <div class="receipt receipt-bill" data-print-text="${escapeAttr(plainText)}">
@@ -1927,7 +2056,7 @@ function receiptMarkup(sale) {
       <div class="receipt-meta">
         <span>Invoice</span><strong>${escapeHtml(sale.invoiceNo)}</strong>
         <span>Date</span><strong>${escapeHtml(new Date(sale.createdAt).toLocaleString())}</strong>
-        <span>Table</span><strong>${escapeHtml(sale.tableName || "No table")}</strong>
+        <span>${labels.receiptLocationLabel}</span><strong>${escapeHtml(sale.tableName || labels.receiptLocationValue)}</strong>
         <span>Customer</span><strong>${escapeHtml(sale.customerName || "Walk-in Customer")}</strong>
       </div>
       <table class="receipt-items">
@@ -2016,6 +2145,7 @@ function wrapPrintText(value = "", width = 32) {
 }
 
 function formatReceiptText(sale, settings = state.data.settings) {
+  const labels = posLabels();
   const line = "-".repeat(32);
   const items = (sale.items || []).flatMap((item) => [
     ...wrapPrintText(item.name),
@@ -2029,7 +2159,7 @@ function formatReceiptText(sale, settings = state.data.settings) {
     line,
     `Invoice: ${cleanPrintText(sale.invoiceNo)}`,
     `Date: ${new Date(sale.createdAt).toLocaleString()}`,
-    `Table: ${cleanPrintText(sale.tableName || "No table")}`,
+    `${labels.receiptLocationLabel}: ${cleanPrintText(sale.tableName || labels.receiptLocationValue)}`,
     `Customer: ${cleanPrintText(sale.customerName || "Walk-in Customer")}`,
     line,
     ...items,
@@ -2069,6 +2199,17 @@ function bindEvents() {
     state.sidebarExpanded = !state.sidebarExpanded;
     localStorage.setItem("pondypos-sidebar-expanded", String(state.sidebarExpanded));
     render();
+  });
+  document.querySelectorAll("[data-pos-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedPosType = button.dataset.posType === "general" ? "general" : "restaurant";
+      localStorage.setItem(posTypeKey, state.selectedPosType);
+      if (isAuthenticated()) {
+        applySelectedPosTypeToData();
+        persistInBackground("POS type saved locally. Cloud sync pending.", { showToast: false, renderOnError: false, renderOnSuccess: false });
+      }
+      render();
+    });
   });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
@@ -2129,6 +2270,16 @@ function bindEvents() {
   document.querySelector("#add-table")?.addEventListener("click", addTable);
   document.querySelector("#remove-table")?.addEventListener("click", removeTable);
   document.querySelector("#back-to-tables")?.addEventListener("click", backToTables);
+  document.querySelector("#new-retail-bill")?.addEventListener("click", async () => {
+    if ((state.data.openBills[generalCounterId] || []).length && !confirm("Clear current counter bill and start a new one?")) return;
+    state.data.openBills[generalCounterId] = [];
+    delete state.billDrafts?.[generalCounterId];
+    state.pendingBill = null;
+    state.selectedTableId = generalCounterId;
+    state.mobileCartOpen = false;
+    await persistSafely("New bill ready", "New bill started locally. Cloud sync failed.");
+    render();
+  });
   document.querySelector("#mobile-close-cart")?.addEventListener("click", () => {
     state.mobileCartOpen = false;
     render();
@@ -2157,9 +2308,9 @@ function bindEvents() {
     if (tableId) delete state.billDrafts?.[tableId];
     if (tableId) syncActiveKotsWithTable(tableId, []);
     if (state.pendingBill?.tableId === tableId) state.pendingBill = null;
-    state.selectedTableId = "";
+    state.selectedTableId = isGeneralPOS() ? generalCounterId : "";
     state.mobileCartOpen = false;
-    setToast(hadItems ? "Table bill cleared" : "Returned to tables");
+    setToast(hadItems ? "Bill cleared" : isGeneralPOS() ? "Counter bill ready" : "Returned to tables");
     render();
     try {
       await persist();
@@ -2189,6 +2340,7 @@ function bindEvents() {
   document.querySelector("#save-product")?.addEventListener("click", saveProduct);
   document.querySelector("#product-category")?.addEventListener("change", toggleNewCategoryInput);
   document.querySelector("#save-settings")?.addEventListener("click", saveSettings);
+  document.querySelector("#setting-posType")?.addEventListener("change", savePosType);
   document.querySelector("#android-printer-settings")?.addEventListener("click", openAndroidPrinterSettings);
   document.querySelector("#force-cloud-sync")?.addEventListener("click", manualSync);
   document.querySelector("#setting-saveBillAfterPrint")?.addEventListener("change", saveBillingWorkflow);
@@ -2770,7 +2922,7 @@ async function saveProduct() {
     setToast("Enter new category name", "error");
     if (saveButton) {
       saveButton.disabled = false;
-      saveButton.innerHTML = `${icon("save")} Save menu item`;
+      saveButton.innerHTML = `${icon("save")} Save ${isGeneralPOS() ? "product" : "menu item"}`;
       createIconsSafely();
     }
     return;
@@ -2789,7 +2941,7 @@ async function saveProduct() {
     setToast("Menu price cannot be negative", "error");
     if (saveButton) {
       saveButton.disabled = false;
-      saveButton.innerHTML = `${icon("save")} Save menu item`;
+      saveButton.innerHTML = `${icon("save")} Save ${isGeneralPOS() ? "product" : "menu item"}`;
       createIconsSafely();
     }
     return;
@@ -2894,8 +3046,12 @@ async function saveSettings() {
     logoUrl = await imageFileToDataUrl(logoFile, 520, 0.84);
     logoUpdatedAt = new Date().toISOString();
   }
+  const selectedPosType = document.querySelector("#setting-posType")?.value === "general" ? "general" : "restaurant";
+  state.selectedPosType = selectedPosType;
+  localStorage.setItem(posTypeKey, selectedPosType);
   state.data.settings = {
     ...state.data.settings,
+    posType: selectedPosType,
     shopName: document.querySelector("#setting-shopName").value.trim(),
     phone: document.querySelector("#setting-phone").value.trim(),
     gstin: document.querySelector("#setting-gstin").value.trim(),
@@ -2904,7 +3060,19 @@ async function saveSettings() {
     logoUrl,
     logoUpdatedAt
   };
-  await persistSafely("Restaurant settings saved", "Restaurant settings saved locally. Cloud sync failed.");
+  applySelectedPosTypeToData();
+  await persistSafely("Outlet settings saved", "Outlet settings saved locally. Cloud sync failed.");
+  render();
+}
+
+async function savePosType(event) {
+  state.selectedPosType = event.target.value === "general" ? "general" : "restaurant";
+  localStorage.setItem(posTypeKey, state.selectedPosType);
+  applySelectedPosTypeToData();
+  state.view = "pos";
+  state.modal = null;
+  state.mobileCartOpen = false;
+  await persistSafely(`${isGeneralPOS() ? "General POS" : "Restaurant POS"} enabled`, "POS type saved locally. Cloud sync failed.");
   render();
 }
 
@@ -3194,12 +3362,16 @@ async function finishSignedInUser(user) {
   state.user = user;
   state.tenantId = user?.uid || "demo";
   rememberSignedInUser(user);
+  state.data = readLocal(state.tenantId);
+  applySelectedPosTypeToData();
   state.authReady = true;
   state.authBusy = false;
   state.authAction = "";
   render();
   try {
     await pullCloudData();
+    applySelectedPosTypeToData();
+    await persist();
     await syncPendingIfOnline({ silent: true });
     startCloudListener();
     render();

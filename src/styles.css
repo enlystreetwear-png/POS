@@ -1657,6 +1657,52 @@ textarea:focus {
   display: none;
 }
 
+.pos-type-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pos-type-option {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+}
+
+.pos-type-option svg {
+  flex: 0 0 auto;
+}
+
+.pos-type-option span,
+.pos-type-option small {
+  display: block;
+}
+
+.pos-type-option small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+  line-height: 1.25;
+}
+
+.pos-type-option.active {
+  border-color: #111827;
+  background: #111827;
+  color: white;
+}
+
+.pos-type-option.active small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .auth-plan {
   display: flex;
   align-items: center;
@@ -2802,6 +2848,17 @@ textarea:focus {
     line-height: 1;
     letter-spacing: 0;
     font-weight: 900;
+  }
+
+  .pos-type-picker {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .pos-type-option {
+    min-height: 58px;
+    padding: 10px 12px;
+    box-shadow: none;
   }
 
   .auth-card h2 {
