@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260601-pos-models";
+const assetVersion = "20260601-pos-models-2";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -769,6 +769,23 @@ function renderPosTypeOption(type, title, text, iconName) {
   `;
 }
 
+function renderPosModelSwitchPanel() {
+  return `
+    <section class="panel pos-model-panel">
+      <div class="panel-header">
+        <div>
+          <h3>Choose POS model</h3>
+          <p>${isGeneralPOS() ? "General POS is active for direct counter billing." : "Restaurant POS is active for table billing and KOT."}</p>
+        </div>
+      </div>
+      <div class="pos-type-picker logged-in">
+        ${renderPosTypeOption("restaurant", "Restaurant POS", "Tables, KOT, menu billing", "utensils")}
+        ${renderPosTypeOption("general", "General POS", "Products, barcode, counter sale", "shopping-bag")}
+      </div>
+    </section>
+  `;
+}
+
 function renderShell() {
   const shellClasses = [
     "app-shell",
@@ -934,6 +951,7 @@ function renderDashboard() {
   const profit = revenue - totalExpenses;
   const topItems = topSoldItems(todaysSales);
   return `
+    ${renderPosModelSwitchPanel()}
     <section class="grid dashboard-grid">
       ${dashboardMetric("Total sale", money(revenue), "indian-rupee")}
       ${dashboardMetric("Expenses", money(totalExpenses), "receipt-text", "expense")}
@@ -1076,7 +1094,7 @@ function renderPOS() {
   const general = isGeneralPOS();
   const labels = posLabels();
   if (general) ensureGeneralCounter();
-  if (!general && !state.selectedTableId) return renderTablePicker();
+  if (!general && !state.selectedTableId) return `${renderPosModelSwitchPanel()}${renderTablePicker()}`;
   const categories = ["All", ...new Set(state.data.products.map((product) => product.category || "General"))].sort((a, b) =>
     a === "All" ? -1 : b === "All" ? 1 : a.localeCompare(b)
   );
@@ -1093,6 +1111,7 @@ function renderPOS() {
   const draft = currentBillDraft();
   const locked = !isSubscriptionActive();
   return `
+    ${renderPosModelSwitchPanel()}
     ${locked ? renderSubscriptionBanner() : ""}
     <section class="grid pos-grid ${state.mobileCartOpen ? "cart-open" : ""}">
       <div class="panel menu-panel">
@@ -1608,6 +1627,7 @@ function renderOutletSettings() {
         <button class="button" id="save-settings" style="margin-top:12px">${icon("save")} Save settings</button>
       </div>
     </details>
+    ${renderPosModelSwitchPanel()}
     <details class="panel settings-panel profile-dropdown">
       <summary class="settings-dropdown-summary">
         <span>
@@ -1669,6 +1689,7 @@ function cloudSyncPanel() {
       ${rows.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}
       ${state.lastSyncError ? `<p class="sync-error">${escapeHtml(state.lastSyncError)}</p>` : ""}
       <button class="button" id="force-cloud-sync">${icon("cloud-upload")} Sync now</button>
+      <button class="button warn" id="reset-account-data">${icon("trash-2")} Reset this login data</button>
     </div>
   `;
 }
@@ -3160,7 +3181,9 @@ async function saveDashboardWorker() {
 async function resetCurrentAccountData() {
   if (!confirm("Delete all billing, menu, guest, and order data for this login and start fresh?")) return;
   const tenantId = state.tenantId;
+  state.selectedPosType = posType();
   state.data = normalizeData(cloneData(seed));
+  applySelectedPosTypeToData();
   state.selectedTableId = "";
   localStorage.removeItem(dataStorageKey(tenantId));
   writeLocal();
