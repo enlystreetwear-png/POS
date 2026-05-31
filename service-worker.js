@@ -1,4 +1,4 @@
-const CACHE_NAME = "pondypos-offline-20260601-pos-models-2";
+const CACHE_NAME = "pondypos-offline-20260601-pos-setup";
 const APP_SHELL = [
   "/",
   "/index.html",

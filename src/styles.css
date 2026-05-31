@@ -1653,6 +1653,45 @@ textarea:focus {
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.18);
 }
 
+.pos-setup-page {
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 24px;
+}
+
+.pos-setup-card {
+  width: min(100%, 620px);
+  min-height: auto;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+}
+
+.pos-setup-card .setup-brand {
+  display: grid;
+  margin-bottom: 4px;
+}
+
+.setup-copy {
+  text-align: center;
+}
+
+.setup-copy h1 {
+  margin: 8px 0;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1;
+}
+
+.setup-copy p {
+  margin: 0 auto;
+  max-width: 440px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.setup-options {
+  margin: 10px 0 2px;
+}
+
 .mobile-auth-brand {
   display: none;
 }
@@ -2828,6 +2867,23 @@ textarea:focus {
     background: #ffffff;
     border: 0;
     box-shadow: none;
+  }
+
+  .pos-setup-page {
+    padding: 18px 14px;
+    place-items: stretch;
+  }
+
+  .pos-setup-card {
+    width: min(100%, 420px);
+    margin: auto;
+    padding: 18px 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .setup-copy h1 {
+    font-size: 26px;
   }
 
   .mobile-auth-brand {

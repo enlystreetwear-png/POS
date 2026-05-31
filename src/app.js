@@ -3,7 +3,7 @@ const currency = new Intl.NumberFormat("en-IN", {
   currency: "INR"
 });
 
-const assetVersion = "20260601-pos-models-2";
+const assetVersion = "20260601-pos-setup";
 const logoLightUrl = `/public/pondy-logo-light-app.png?v=${assetVersion}`;
 const logoDarkUrl = `/public/pondy-logo-dark-app.png?v=${assetVersion}`;
 const markLightUrl = `/public/pondy-mark-light-app.png?v=${assetVersion}`;
@@ -131,6 +131,7 @@ const state = {
   modal: null,
   authError: "",
   selectedPosType: readStorage(posTypeKey) || "restaurant",
+  needsPosSetup: false,
   lastReceipt: null,
   printContent: "",
   pendingBill: null
@@ -207,6 +208,15 @@ function normalizeData(data) {
 
 function posType() {
   return state.data?.settings?.posType === "general" ? "general" : "restaurant";
+}
+
+function hasSavedPosType(data = {}) {
+  return data?.settings?.posType === "restaurant" || data?.settings?.posType === "general";
+}
+
+function setSelectedPosType(type) {
+  state.selectedPosType = type === "general" ? "general" : "restaurant";
+  localStorage.setItem(posTypeKey, state.selectedPosType);
 }
 
 function isGeneralPOS() {
@@ -367,7 +377,6 @@ async function initFirebase() {
       state.user = user;
       state.tenantId = user?.uid || "demo";
       state.data = readLocal(state.tenantId);
-      if (user) applySelectedPosTypeToData();
       state.pendingCloudSync = readPendingSync(state.tenantId);
       state.selectedTableId = "";
       state.authReady = true;
@@ -376,16 +385,18 @@ async function initFirebase() {
       render();
       if (user) {
         try {
-          await pullCloudData();
-          applySelectedPosTypeToData();
-          await persist();
-          await syncPendingIfOnline({ silent: true });
-          startCloudListener();
+          const cloudResult = await pullCloudData();
+          if (cloudResult !== "needs-setup") {
+            await syncPendingIfOnline({ silent: true });
+            startCloudListener();
+          }
           render();
         } catch (error) {
           console.warn("Cloud sync failed", error);
           state.authError = "";
         }
+      } else {
+        state.needsPosSetup = false;
       }
     });
   } finally {
@@ -407,32 +418,41 @@ async function pullCloudData() {
     state.syncStatus = "offline";
     return;
   }
-  const { doc, getDoc, setDoc } = state.firebase.fireMod;
+  const { doc, getDoc } = state.firebase.fireMod;
   const ref = doc(state.db, "tenants", state.tenantId);
   const snap = await getDoc(ref);
   if (snap.exists()) {
+    const remoteData = snap.data();
+    if (!hasSavedPosType(remoteData)) {
+      state.data = normalizeData({ ...cloneData(seed), ...remoteData });
+      state.needsPosSetup = true;
+      state.syncStatus = "setup";
+      writeLocal();
+      return "needs-setup";
+    }
+    setSelectedPosType(remoteData.settings.posType);
+    state.needsPosSetup = false;
     if (!state.pendingCloudSync) {
-      const remoteData = snap.data();
       applyCloudData(remoteData);
       writeLocal();
     }
+    return "loaded";
   } else {
-    state.data = readLocal(state.tenantId);
-    const payload = cloudPayload();
+    state.data = normalizeData(cloneData(seed));
+    state.needsPosSetup = true;
+    state.syncStatus = "setup";
+    state.lastSyncError = "";
     writeLocal();
-    await setDoc(ref, payload);
-    clearPendingSync();
-    state.syncStatus = "synced";
-    state.lastSyncedAt = new Date().toISOString();
-    state.lastRemoteRevision = Number(state.data.syncRevision || 0);
-    state.lastRemoteDeviceId = deviceId;
+    return "needs-setup";
   }
 }
 
 function applyCloudData(remoteData) {
   const revision = Number(remoteData?.syncRevision || 0);
   const remoteDeviceId = remoteData?.syncDeviceId || "";
+  if (hasSavedPosType(remoteData)) setSelectedPosType(remoteData.settings.posType);
   state.data = normalizeData({ ...cloneData(seed), ...remoteData });
+  state.needsPosSetup = !hasSavedPosType(remoteData);
   state.lastRemoteRevision = Math.max(state.lastRemoteRevision || 0, revision);
   state.lastRemoteDeviceId = remoteDeviceId;
   state.syncStatus = "synced";
@@ -452,13 +472,18 @@ function cloudPayload() {
 }
 
 function startCloudListener() {
-  if (!state.user || !state.db || state.cloudUnsubscribe) return;
+  if (!state.user || !state.db || state.cloudUnsubscribe || state.needsPosSetup) return;
   const { doc, onSnapshot } = state.firebase.fireMod;
   const ref = doc(state.db, "tenants", state.tenantId);
   state.cloudUnsubscribe = onSnapshot(ref, (snap) => {
     if (!snap.exists() || snap.metadata.hasPendingWrites) return;
     if (state.pendingCloudSync || readPendingSync(state.tenantId)) return;
     const remoteData = snap.data();
+    if (!hasSavedPosType(remoteData)) {
+      state.needsPosSetup = true;
+      renderKeepingScroll();
+      return;
+    }
     const revision = Number(remoteData?.syncRevision || 0);
     const remoteDeviceId = remoteData?.syncDeviceId || "";
     if (remoteDeviceId === deviceId && revision <= Number(state.lastRemoteRevision || 0)) return;
@@ -486,6 +511,10 @@ function stopCloudListener() {
 
 async function persist() {
   writeLocal();
+  if (state.needsPosSetup) {
+    state.syncStatus = "setup";
+    return;
+  }
   if (!state.user || !state.db) {
     state.syncStatus = "local";
     return;
@@ -532,6 +561,18 @@ async function persistSafely(successMessage, errorMessage = "Saved locally. Clou
   }
 }
 
+async function saveInitialPosType(type) {
+  setSelectedPosType(type);
+  applySelectedPosTypeToData();
+  state.needsPosSetup = false;
+  state.view = "pos";
+  state.selectedTableId = isGeneralPOS() ? generalCounterId : "";
+  state.mobileCartOpen = false;
+  await persistSafely(`${isGeneralPOS() ? "General POS" : "Restaurant POS"} ready`, "POS model saved locally. Cloud sync failed.");
+  startCloudListener();
+  render();
+}
+
 function persistInBackground(errorMessage = "Saved locally. Cloud sync pending.", options = {}) {
   const { showToast = true, renderOnError = true, renderOnSuccess = true } = options;
   persist().then(() => {
@@ -544,6 +585,7 @@ function persistInBackground(errorMessage = "Saved locally. Cloud sync pending."
 }
 
 async function syncPendingIfOnline({ silent = false } = {}) {
+  if (state.needsPosSetup) return false;
   if (!state.user || !state.db || navigator.onLine === false) return false;
   if (!state.pendingCloudSync && !readPendingSync(state.tenantId)) return false;
   try {
@@ -662,7 +704,7 @@ function cssIdent(value = "") {
 
 function render() {
   if (state.view === "operations") state.view = "pos";
-  app.innerHTML = !isAuthenticated() ? renderAuth() : renderShell();
+  app.innerHTML = !isAuthenticated() ? renderAuth() : (state.needsPosSetup ? renderPosSetup() : renderShell());
   createIconsSafely();
   bindEvents();
   if (state.focusReportSearch) {
@@ -727,7 +769,7 @@ function renderAuth() {
         </div>
         <span class="eyebrow">Cloud POS operations</span>
         <h1>PondyPOS</h1>
-        <p>Choose restaurant billing or general retail billing, then run products, customers, receipts, reports, and Firebase sync from one responsive workspace.</p>
+        <p>Sign in, choose your POS model once, then run products, customers, receipts, reports, and Firebase sync from one responsive workspace.</p>
         <div class="auth-proof">
           <div><strong>Restaurant</strong><span>Tables and KOT</span></div>
           <div><strong>General POS</strong><span>Counter billing</span></div>
@@ -741,10 +783,6 @@ function renderAuth() {
         </div>
         ${state.authError ? `<div class="auth-error">${icon("circle-alert")}<span>${state.authError}</span></div>` : ""}
         ${waitingForFirebase ? `<div class="auth-loading">${icon("loader-circle")}<span>Connecting to Firebase. Login will be ready in a moment.</span></div>` : ""}
-        <div class="pos-type-picker" role="radiogroup" aria-label="Choose POS type">
-          ${renderPosTypeOption("restaurant", "Restaurant POS", "Tables, KOT, menu billing", "utensils")}
-          ${renderPosTypeOption("general", "General POS", "Products, barcode, counter sale", "shopping-bag")}
-        </div>
         <h2>Sign in with phone OTP</h2>
         <div class="field"><label>Phone number</label><input class="input" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" value="${escapeAttr(state.phoneNumber || "")}" ${state.otpSent ? "disabled" : ""}></div>
         ${state.otpSent ? `<div class="field"><label>OTP code</label><input class="input" id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit OTP" maxlength="8"></div>` : ""}
@@ -766,6 +804,29 @@ function renderPosTypeOption(type, title, text, iconName) {
       ${icon(iconName)}
       <span><strong>${title}</strong><small>${text}</small></span>
     </button>
+  `;
+}
+
+function renderPosSetup() {
+  return `
+    <main class="auth pos-setup-page">
+      <section class="auth-card pos-setup-card">
+        <div class="mobile-auth-brand setup-brand">
+          <img src="${markLightUrl}" alt="">
+          <strong>PondyPOS</strong>
+        </div>
+        <div class="setup-copy">
+          <span class="eyebrow">First time setup</span>
+          <h1>Choose your POS model</h1>
+          <p>This choice will be saved to Firebase for this login. Next time, PondyPOS will open the same POS automatically.</p>
+        </div>
+        <div class="pos-type-picker setup-options" role="radiogroup" aria-label="Choose POS model">
+          ${renderPosTypeOption("restaurant", "Restaurant POS", "Tables, KOT, menu billing", "utensils")}
+          ${renderPosTypeOption("general", "General POS", "Products, barcode, counter sale", "shopping-bag")}
+        </div>
+        <button class="button secondary" id="setup-signout">${icon("log-out")} Sign out</button>
+      </section>
+    </main>
   `;
 }
 
@@ -2223,8 +2284,11 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-pos-type]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.selectedPosType = button.dataset.posType === "general" ? "general" : "restaurant";
-      localStorage.setItem(posTypeKey, state.selectedPosType);
+      if (state.needsPosSetup) {
+        saveInitialPosType(button.dataset.posType);
+        return;
+      }
+      setSelectedPosType(button.dataset.posType);
       if (isAuthenticated()) {
         applySelectedPosTypeToData();
         persistInBackground("POS type saved locally. Cloud sync pending.", { showToast: false, renderOnError: false, renderOnSuccess: false });
@@ -2232,6 +2296,7 @@ function bindEvents() {
       render();
     });
   });
+  document.querySelector("#setup-signout")?.addEventListener("click", signOutCurrentUser);
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
   });
@@ -3068,8 +3133,7 @@ async function saveSettings() {
     logoUpdatedAt = new Date().toISOString();
   }
   const selectedPosType = document.querySelector("#setting-posType")?.value === "general" ? "general" : "restaurant";
-  state.selectedPosType = selectedPosType;
-  localStorage.setItem(posTypeKey, selectedPosType);
+  setSelectedPosType(selectedPosType);
   state.data.settings = {
     ...state.data.settings,
     posType: selectedPosType,
@@ -3087,8 +3151,7 @@ async function saveSettings() {
 }
 
 async function savePosType(event) {
-  state.selectedPosType = event.target.value === "general" ? "general" : "restaurant";
-  localStorage.setItem(posTypeKey, state.selectedPosType);
+  setSelectedPosType(event.target.value);
   applySelectedPosTypeToData();
   state.view = "pos";
   state.modal = null;
@@ -3181,7 +3244,7 @@ async function saveDashboardWorker() {
 async function resetCurrentAccountData() {
   if (!confirm("Delete all billing, menu, guest, and order data for this login and start fresh?")) return;
   const tenantId = state.tenantId;
-  state.selectedPosType = posType();
+  setSelectedPosType(posType());
   state.data = normalizeData(cloneData(seed));
   applySelectedPosTypeToData();
   state.selectedTableId = "";
@@ -3386,17 +3449,16 @@ async function finishSignedInUser(user) {
   state.tenantId = user?.uid || "demo";
   rememberSignedInUser(user);
   state.data = readLocal(state.tenantId);
-  applySelectedPosTypeToData();
   state.authReady = true;
   state.authBusy = false;
   state.authAction = "";
   render();
   try {
-    await pullCloudData();
-    applySelectedPosTypeToData();
-    await persist();
-    await syncPendingIfOnline({ silent: true });
-    startCloudListener();
+    const cloudResult = await pullCloudData();
+    if (cloudResult !== "needs-setup") {
+      await syncPendingIfOnline({ silent: true });
+      startCloudListener();
+    }
     render();
   } catch (error) {
     console.warn("Cloud sync failed", error);
@@ -3495,7 +3557,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !state.user || !state.db) return;
   pullCloudData()
     .then(() => {
-      if (!state.cloudUnsubscribe) startCloudListener();
+      if (!state.needsPosSetup && !state.cloudUnsubscribe) startCloudListener();
       renderKeepingScroll();
     })
     .catch((error) => {
